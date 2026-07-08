@@ -1,0 +1,10 @@
+{
+  // Cloudflare Workers (static assets) config.
+  // Naming the Worker here lets Git-connected builds update it
+  // instead of refusing with "a Worker named ... already exists".
+  "name": "snowglobev2",
+  "compatibility_date": "2026-07-08",
+  "assets": {
+    "directory": "./"
+  }
+}
