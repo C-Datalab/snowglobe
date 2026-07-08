@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Haunted Snow Globe</title>
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Eater&family=Jolly+Lodger&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-top: #0b0b1a;
+    --bg-bottom: #1a0f2e;
+    --glass: rgba(150, 180, 255, 0.08);
+    --ghost: #cfe8ff;
+    /* globe diameter scales with the smaller viewport side */
+    --gsize: clamp(300px, 72vmin, 860px);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(ellipse at top, var(--bg-bottom), var(--bg-top) 70%);
+    color: #b8a8d8;
+    font-family: 'IM Fell English', serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.6rem, 1.5vh, 1.4rem);
+    padding: clamp(0.8rem, 2vh, 2rem);
+    overflow: hidden;
+  }
+  h1 {
+    font-family: 'Eater', cursive;
+    font-weight: 400;
+    font-size: clamp(1.4rem, 4.5vmin, 2.8rem);
+    color: #8f7bb8;
+    text-shadow: 0 0 18px rgba(140, 100, 220, 0.5);
+    letter-spacing: 0.06em;
+  }
+
+  /* ---- globe ---- */
+  .globe-wrap {
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .globe-wrap:active .globe { transform: scale(0.98); }
+  .globe {
+    position: relative;
+    z-index: 0; /* contain children's z-indexes so base can sit above */
+    width: var(--gsize);
+    height: var(--gsize);
+    border-radius: 50%;
+    overflow: hidden;
+    background: linear-gradient(180deg, #141433 0%, #1d1040 55%, #241452 100%);
+    box-shadow:
+      inset 0 0 60px rgba(80, 60, 160, 0.35),
+      inset -20px -25px 60px rgba(0,0,0,0.55),
+      0 25px 60px rgba(0,0,0,0.7);
+    transition: transform 0.15s;
+  }
+  .globe-wrap.shaking { animation: globeShake 0.9s ease-in-out; }
+  @keyframes globeShake {
+    0%, 100% { transform: translateX(0) rotate(0deg); }
+    15% { transform: translateX(-14px) rotate(-5deg); }
+    35% { transform: translateX(14px) rotate(5deg); }
+    55% { transform: translateX(-10px) rotate(-3deg); }
+    75% { transform: translateX(9px) rotate(3deg); }
+  }
+  /* glass highlight */
+  .globe::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 30% 22%, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.05) 18%, transparent 35%),
+      radial-gradient(circle at 72% 80%, rgba(160,190,255,0.07) 0%, transparent 40%);
+    pointer-events: none;
+    z-index: 6;
+  }
+  .scene { position: absolute; inset: 0; z-index: 1; }
+  .scene svg { width: 100%; height: 100%; display: block; }
+
+  /* windows flicker */
+  .win { animation: flicker 4s infinite; }
+  .win:nth-child(2n) { animation-delay: 1.3s; animation-duration: 5s; }
+  .win:nth-child(3n) { animation-delay: 2.1s; animation-duration: 3.4s; }
+  @keyframes flicker {
+    0%, 100% { opacity: 0.9; }
+    45% { opacity: 0.55; }
+    50% { opacity: 0.95; }
+    55% { opacity: 0.4; }
+    60% { opacity: 0.85; }
+  }
+  /* bat flutter */
+  .bat { animation: flutter 7s ease-in-out infinite; transform-origin: center; }
+  .bat2 { animation-delay: 2.5s; animation-duration: 9s; }
+  @keyframes flutter {
+    0%, 100% { transform: translate(0, 0); }
+    25% { transform: translate(14px, -8px); }
+    50% { transform: translate(-6px, -14px); }
+    75% { transform: translate(10px, -4px); }
+  }
+  /* drifting fog inside globe */
+  .fog {
+    position: absolute;
+    bottom: 8%;
+    left: -30%;
+    width: 160%;
+    height: 38%;
+    background: radial-gradient(ellipse at center, rgba(170,160,220,0.34) 0%, transparent 70%);
+    filter: blur(10px);
+    animation: fogDrift 14s ease-in-out infinite alternate;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .fog.fog2 {
+    bottom: 16%;
+    animation-duration: 19s;
+    animation-delay: -7s;
+    opacity: 0.8;
+  }
+  /* mid-height bank: drifts across the windows, dims them */
+  .fog.fog3 {
+    bottom: 26%;
+    height: 34%;
+    animation-duration: 23s;
+    animation-delay: -11s;
+    opacity: 0.75;
+  }
+  @keyframes fogDrift {
+    from { transform: translateX(-6%); }
+    to   { transform: translateX(6%); }
+  }
+
+  /* snow canvas — width/height:100% needed because <canvas> is a replaced
+     element and inset:0 alone won't stretch it to fill the globe */
+  #snow { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
+
+  /* ghostly answer */
+  .answer {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 0 9%;
+    z-index: 5;
+    font-family: 'Jolly Lodger', 'IM Fell English', serif;
+    font-size: clamp(1.8rem, 9vmin, 6rem);
+    line-height: 1.35;
+    color: var(--ghost);
+    opacity: 0;
+    filter: blur(12px);
+    letter-spacing: 0.12em;
+    text-shadow:
+      0 0 12px rgba(190, 220, 255, 0.9),
+      0 0 30px rgba(140, 180, 255, 0.6),
+      0 0 60px rgba(120, 140, 255, 0.4);
+    pointer-events: none;
+    transition: opacity 1.6s ease, filter 1.6s ease, letter-spacing 1.6s ease;
+  }
+  .answer.visible {
+    opacity: 1;
+    filter: blur(0.4px);
+    letter-spacing: 0.05em;
+    animation: shimmer 3.2s ease-in-out 1.6s infinite;
+  }
+  @keyframes shimmer {
+    0%, 100% { opacity: 1;    text-shadow: 0 0 12px rgba(190,220,255,0.9), 0 0 30px rgba(140,180,255,0.6); }
+    50%      { opacity: 0.72; text-shadow: 0 0 20px rgba(190,220,255,1),   0 0 45px rgba(140,180,255,0.8); }
+  }
+  /* red entry message */
+  .answer.intro {
+    font-size: clamp(1.6rem, 7vmin, 5rem);
+    color: #ff3b3b;
+    text-shadow:
+      0 0 12px rgba(255, 60, 60, 0.9),
+      0 0 30px rgba(220, 30, 30, 0.6),
+      0 0 60px rgba(180, 0, 0, 0.4);
+    animation: shimmerRed 3.2s ease-in-out 1.6s infinite;
+  }
+  @keyframes shimmerRed {
+    0%, 100% { opacity: 1;    text-shadow: 0 0 12px rgba(255,60,60,0.9), 0 0 30px rgba(220,30,30,0.6); }
+    50%      { opacity: 0.72; text-shadow: 0 0 20px rgba(255,80,80,1),   0 0 45px rgba(220,30,30,0.8); }
+  }
+
+  /* base */
+  .base {
+    width: calc(var(--gsize) * 0.74);
+    height: calc(var(--gsize) * 0.165);
+    max-height: 84px;
+    margin-top: calc(var(--gsize) * -0.078);
+    background: linear-gradient(180deg, #3a2a1a 0%, #241808 60%, #120c04 100%);
+    border-radius: 14px 14px 22px 22px;
+    box-shadow: 0 14px 30px rgba(0,0,0,0.7), inset 0 3px 6px rgba(255,220,160,0.12);
+    z-index: 1; /* in front of globe */
+    position: relative;
+  }
+  .base::before {
+    content: 'ASK… IF YOU DARE';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'IM Fell English', serif;
+    font-size: clamp(0.6rem, 1.5vmin, 1.1rem);
+    letter-spacing: 0.32em;
+    color: #9a7e4f;
+    text-shadow: 0 1px 2px #000;
+  }
+
+  /* layout: globe + spectral list side by side */
+  .stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2.5rem;
+    flex-wrap: wrap;
+  }
+  /* parchment scroll */
+  .scroll {
+    position: relative;
+    min-width: 300px;
+    max-width: 400px;
+    min-height: clamp(260px, 52vmin, 600px);
+    padding: 30px 30px;
+    color: #3f280f;
+    background:
+      repeating-linear-gradient(0deg, rgba(120,90,40,0.05) 0 2px, transparent 2px 26px),
+      radial-gradient(120% 90% at 30% 15%, rgba(255,250,235,0.9) 0%, transparent 45%),
+      radial-gradient(ellipse at 50% 50%, #f2e6c6 0%, #e7d6ac 62%, #d8c187 100%);
+    border-radius: 4px;
+    box-shadow:
+      inset 0 0 50px rgba(120, 80, 30, 0.3),
+      inset 0 0 12px rgba(90, 60, 20, 0.35),
+      0 12px 30px rgba(0,0,0,0.55);
+    transform-origin: top center;
+  }
+  /* mottled age stains */
+  .scroll::before {
+    content: '';
+    position: absolute; inset: 0;
+    border-radius: 4px;
+    background:
+      radial-gradient(circle at 78% 28%, rgba(110,70,20,0.18) 0%, transparent 12%),
+      radial-gradient(circle at 18% 70%, rgba(110,70,20,0.15) 0%, transparent 14%),
+      radial-gradient(circle at 60% 88%, rgba(110,70,20,0.12) 0%, transparent 10%);
+    pointer-events: none;
+  }
+  /* rolled top & bottom ends */
+  .scroll-roll {
+    position: relative;
+    width: 100%;
+    min-width: 360px;
+    max-width: 460px;
+    height: 26px;
+    margin-left: -12px;
+    background: linear-gradient(180deg, #d8c187 0%, #b8975a 45%, #8a6a34 70%, #b8975a 100%);
+    border-radius: 50% / 100%;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.45), inset 0 -3px 6px rgba(80,50,15,0.5);
+    z-index: 2;
+  }
+  .scroll-roll.top { margin-bottom: -10px; }
+  .scroll-roll.bottom { margin-top: -10px; }
+  .scroll-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform-origin: top center;
+  }
+
+  .ghost-list {
+    list-style: none;
+    font-family: 'IM Fell English', 'Jolly Lodger', serif;
+    font-size: clamp(1rem, 2.2vmin, 1.5rem);
+    line-height: 1.5;
+    letter-spacing: 0.04em;
+    max-height: clamp(220px, 46vmin, 560px);
+    overflow-y: auto;
+    width: 100%;
+    text-align: center;
+  }
+  .ghost-list li {
+    padding: 1px 6px;
+    transition: color 0.5s, opacity 0.5s, text-shadow 0.5s;
+  }
+  .ghost-list li.done {
+    opacity: 0.5;
+    text-decoration: line-through;
+    text-decoration-color: rgba(90, 55, 20, 0.7);
+  }
+  .ghost-list li.current {
+    color: #9e0d0d;
+    font-weight: bold;
+    opacity: 1;
+    text-decoration: none;
+    text-shadow: 0 0 8px rgba(180, 20, 20, 0.45);
+  }
+  .ghost-list li.appearing {
+    opacity: 0;
+    animation: nameAppear 0.55s ease forwards;
+  }
+  @keyframes nameAppear {
+    from { opacity: 0; transform: translateY(8px); filter: blur(4px); }
+    to   { opacity: 1; transform: translateY(0);   filter: blur(0); }
+  }
+
+
+  .hint { color: #5e5480; font-size: 0.95rem; font-style: italic; }
+  .version {
+    position: fixed;
+    bottom: 10px;
+    right: 14px;
+    color: #4a4066;
+    font-size: 0.75rem;
+    font-family: system-ui, sans-serif;
+  }
+</style>
+</head>
+<body>
+
+<h1>Haunted Snow Globe</h1>
+
+<div class="stage">
+<div class="globe-wrap" id="globeWrap" role="button" tabindex="0" aria-label="Shake the globe for the next name">
+  <div class="globe" id="globe">
+    <div class="scene">
+      <!-- haunted house scene -->
+      <svg viewBox="0 0 340 340" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <!-- blood moon -->
+        <defs>
+          <radialGradient id="moonGrad" cx="0.38" cy="0.32" r="0.85">
+            <stop offset="0%" stop-color="#e8b89a"/>
+            <stop offset="45%" stop-color="#d18a6b"/>
+            <stop offset="80%" stop-color="#b35f47"/>
+            <stop offset="100%" stop-color="#94452f"/>
+          </radialGradient>
+        </defs>
+        <circle cx="248" cy="74" r="34" fill="url(#moonGrad)" opacity="0.95"/>
+        <!-- craters / texture -->
+        <circle cx="238" cy="66" r="7" fill="#a85b40" opacity="0.55"/>
+        <circle cx="258" cy="84" r="5" fill="#9c4f36" opacity="0.5"/>
+        <circle cx="252" cy="60" r="3.5" fill="#a85b40" opacity="0.45"/>
+        <circle cx="233" cy="84" r="4.5" fill="#9c4f36" opacity="0.4"/>
+        <circle cx="262" cy="68" r="2.5" fill="#8f4530" opacity="0.5"/>
+        <circle cx="244" cy="94" r="3" fill="#a85b40" opacity="0.4"/>
+        <ellipse cx="250" cy="78" rx="6" ry="3.5" fill="#9c4f36" opacity="0.35"/>
+        <!-- mottled shading -->
+        <path d="M226 80 q 10 8 22 6 q -8 6 -18 1 Z" fill="#8f4530" opacity="0.3"/>
+        <path d="M256 52 q 8 6 6 14 q -6 -4 -10 -10 Z" fill="#b56a4e" opacity="0.35"/>
+        <!-- reddish halo -->
+        <circle cx="248" cy="74" r="44" fill="#c4674a" opacity="0.14"/>
+        <circle cx="248" cy="74" r="54" fill="#c4674a" opacity="0.07"/>
+        <!-- distant hill -->
+        <path d="M0 268 Q 90 238 180 262 T 340 256 L 340 340 L 0 340 Z" fill="#120a26"/>
+        <!-- dead tree -->
+        <g stroke="#0a0618" stroke-linecap="round" fill="none">
+          <path d="M52 268 L 56 215 M56 215 L 42 192 M56 215 L 70 198 M42 192 L 34 178 M42 192 L 50 180 M70 198 L 80 184 M70 198 L 66 182" stroke-width="5"/>
+          <path d="M34 178 L 28 168 M80 184 L 88 174" stroke-width="3"/>
+        </g>
+        <!-- mansion: Addams-style -->
+        <g>
+          <!-- main block -->
+          <rect x="118" y="170" width="110" height="100" fill="#0d0820"/>
+          <!-- mansard roof -->
+          <path d="M112 170 L 132 138 L 214 138 L 234 170 Z" fill="#080414"/>
+          <!-- central tower -->
+          <rect x="156" y="118" width="36" height="60" fill="#0d0820"/>
+          <path d="M150 118 L 174 84 L 198 118 Z" fill="#080414"/>
+          <!-- spire + lightning rod -->
+          <line x1="174" y1="84" x2="174" y2="68" stroke="#080414" stroke-width="3"/>
+          <circle cx="174" cy="66" r="2.5" fill="#080414"/>
+          <!-- side wing -->
+          <rect x="92" y="208" width="34" height="62" fill="#0b0620"/>
+          <path d="M88 208 L 109 186 L 130 208 Z" fill="#070312"/>
+          <!-- right wing -->
+          <rect x="222" y="200" width="38" height="70" fill="#0b0620"/>
+          <path d="M218 200 L 241 176 L 264 200 Z" fill="#070312"/>
+          <!-- glowing windows -->
+          <rect class="win" x="132" y="186" width="13" height="20" rx="6.5" fill="#ffd97a"/>
+          <rect class="win" x="166" y="186" width="13" height="20" rx="6.5" fill="#ffc14d"/>
+          <rect class="win" x="200" y="186" width="13" height="20" rx="6.5" fill="#ffd97a"/>
+          <rect class="win" x="132" y="222" width="13" height="20" rx="6.5" fill="#ffc14d"/>
+          <rect class="win" x="200" y="222" width="13" height="20" rx="6.5" fill="#ffd97a"/>
+          <circle class="win" cx="174" cy="142" r="7" fill="#ff9d3d"/>
+          <rect class="win" x="100" y="222" width="11" height="16" rx="5.5" fill="#ffc14d"/>
+          <rect class="win" x="234" y="216" width="11" height="16" rx="5.5" fill="#ffd97a"/>
+          <!-- door -->
+          <path d="M163 270 L 163 244 Q 173 234 183 244 L 183 270 Z" fill="#050210"/>
+          <!-- porch steps -->
+          <rect x="156" y="270" width="34" height="4" fill="#080414"/>
+        </g>
+        <!-- iron fence -->
+        <g stroke="#0a0618" stroke-width="2.5">
+          <line x1="60" y1="282" x2="290" y2="282"/>
+          <line x1="70" y1="270" x2="70" y2="284"/><line x1="90" y1="270" x2="90" y2="284"/>
+          <line x1="110" y1="270" x2="110" y2="284"/><line x1="240" y1="270" x2="240" y2="284"/>
+          <line x1="260" y1="270" x2="260" y2="284"/><line x1="280" y1="270" x2="280" y2="284"/>
+        </g>
+        <!-- gravestones -->
+        <path d="M76 296 L 76 286 Q 83 279 90 286 L 90 296 Z" fill="#1c1438"/>
+        <path d="M252 298 L 252 289 Q 258 283 264 289 L 264 298 Z" fill="#1c1438"/>
+        <!-- snowy ground -->
+        <path d="M0 296 Q 85 282 170 292 T 340 290 L 340 340 L 0 340 Z" fill="#b9c4e8" opacity="0.9"/>
+        <path d="M0 308 Q 110 296 220 304 T 340 302 L 340 340 L 0 340 Z" fill="#dde4f7" opacity="0.85"/>
+        <!-- bats -->
+        <g class="bat" fill="#0a0618">
+          <path d="M96 96 q 8 -10 16 0 q -4 -4 -8 2 q -4 -6 -8 -2 Z"/>
+        </g>
+        <g class="bat bat2" fill="#0a0618">
+          <path d="M286 130 q 7 -9 14 0 q -3.5 -3.5 -7 1.8 q -3.5 -5.3 -7 -1.8 Z"/>
+        </g>
+      </svg>
+    </div>
+    <div class="fog"></div>
+    <div class="fog fog2"></div>
+    <div class="fog fog3"></div>
+    <canvas id="snow"></canvas>
+    <div class="answer" id="answer"></div>
+  </div>
+  <div style="display:flex; justify-content:center;"><div class="base" id="base" role="button" tabindex="0" aria-label="Re-randomise the list"></div></div>
+</div>
+<div class="scroll-stack" id="scrollStack">
+  <div class="scroll-roll top"></div>
+  <div class="scroll">
+    <ul class="ghost-list" id="ghostList" aria-label="The spectral order"></ul>
+  </div>
+  <div class="scroll-roll bottom"></div>
+</div>
+</div>
+
+<p class="hint">Click the globe for the next name · click the base to re-randomise</p>
+<div class="version">v1.12.0</div>
+
+<script>
+  const VERSION = '1.12.0';
+
+  // ===== CUSTOMISE YOUR ENTRY MESSAGE HERE =====
+  const INTRO_MESSAGE = 'WHO WILL BE CHOSEN?';
+  const END_MESSAGE = 'ALL DONE';
+  // =============================================
+
+  // ===== SHOW LIST? =====
+  // false (default): names appear on the scroll only as they are drawn
+  // true: the full shuffled list is shown up front
+  const SHOW_LIST = false;
+  // ======================
+
+  // ===== BUILT-IN FALLBACK (edit names.json for the shared list) =====
+  const ANSWERS = [
+    "WARWICK",
+    "CHRISTOPHER",
+    "ADIYA",
+    "JENNIFER",
+    "MADELINE",
+    "CAMILLE",
+    "FRANCO",
+    "SARA",
+    "CHUM",
+    "MAYA"
+  ];
+  // =======================================
+
+  // the roll of names lives in names.json beside this file;
+  // the ANSWERS array above is only the offline / file:// fallback
+  const DEFAULTS_URL = 'names.json';
+  let names = ANSWERS.slice();
+
+  fetch(DEFAULTS_URL)
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if (d && Array.isArray(d.names) && d.names.length &&
+          JSON.stringify(d.names) !== JSON.stringify(names)) {
+        names = d.names;
+        randomise();
+      }
+    })
+    .catch(() => {});
+
+  /* --- snow --- */
+  const canvas = document.getElementById('snow');
+  const ctx = canvas.getContext('2d');
+  let SIZE = 340;        // matches the rendered globe diameter
+  let R = SIZE / 2;
+  const flakes = [];
+  let turbulence = 0;    // 0 = calm fall, >0 = shaken swirl
+
+  // size the canvas to the (now fluid) globe
+  function sizeCanvas() {
+    SIZE = canvas.offsetWidth || 340;
+    canvas.width = SIZE;
+    canvas.height = SIZE;
+    R = SIZE / 2;
+  }
+
+  function spawnFlake(anywhere) {
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(Math.random()) * (R - 8);
+    return {
+      x: R + Math.cos(a) * r,
+      y: anywhere ? R + Math.sin(a) * r : 10 + Math.random() * 30,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: 0.25 + Math.random() * 0.55,
+      size: 1 + Math.random() * 2.4,
+      drift: Math.random() * Math.PI * 2,
+    };
+  }
+
+  // flake count scales with globe area (capped)
+  function initFlakes() {
+    flakes.length = 0;
+    const count = Math.min(320, Math.max(60, Math.round((SIZE * SIZE) / 1400)));
+    for (let i = 0; i < count; i++) flakes.push(spawnFlake(true));
+  }
+
+  sizeCanvas();
+  initFlakes();
+
+  // re-fit on window resize (debounced)
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { sizeCanvas(); initFlakes(); }, 120);
+  });
+
+  function tick() {
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    ctx.fillStyle = 'rgba(235, 240, 255, 0.85)';
+    for (const f of flakes) {
+      f.drift += 0.02;
+      if (turbulence > 0) {
+        f.vx += (Math.random() - 0.5) * turbulence;
+        f.vy += (Math.random() - 0.5) * turbulence;
+        f.vx *= 0.96; f.vy *= 0.96;
+      } else {
+        f.vx = Math.sin(f.drift) * 0.35;
+        f.vy = Math.min(f.vy + 0.005, 0.28 + f.size * 0.18);
+      }
+      f.x += f.vx;
+      f.y += f.vy;
+
+      // keep inside globe circle
+      const dx = f.x - R, dy = f.y - R;
+      const dist = Math.hypot(dx, dy);
+      if (dist > R - 6 || f.y > SIZE - 14) {
+        if (f.y > R) {
+          // settled at bottom or edge: respawn at top
+          Object.assign(f, spawnFlake(false));
+        } else {
+          // bounce off glass
+          const nx = dx / dist, ny = dy / dist;
+          f.x = R + nx * (R - 7);
+          f.y = R + ny * (R - 7);
+          f.vx = -f.vx * 0.6;
+          f.vy = -f.vy * 0.6;
+        }
+      }
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (turbulence > 0) turbulence = Math.max(0, turbulence - 0.012);
+    requestAnimationFrame(tick);
+  }
+  tick();
+
+  /* --- shake, shuffle & ordered reveal --- */
+  const wrap = document.getElementById('globeWrap');
+  const globe = document.getElementById('globe');
+  const answerEl = document.getElementById('answer');
+  const base = document.getElementById('base');
+  const listEl = document.getElementById('ghostList');
+  const scrollStack = document.getElementById('scrollStack');
+  let busy = false;
+  let order = [];   // shuffled list of names
+  let pos = -1;     // -1 = intro (not started); 0..n-1 = current name
+
+  // Fisher–Yates shuffle
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // build the spectral list, marking done / current.
+  // stagger=true => names fade in one after another (used on (re)randomise)
+  function renderList(stagger) {
+    listEl.innerHTML = '';
+    order.forEach((name, idx) => {
+      // hidden mode: only show names already drawn (idx <= pos)
+      if (!SHOW_LIST && idx > pos) return;
+      const li = document.createElement('li');
+      li.textContent = name;
+      if (idx < pos) li.classList.add('done');
+      else if (idx === pos) li.classList.add('current');
+      if (SHOW_LIST && stagger) {
+        // reveal-all cascade
+        li.classList.add('appearing');
+        li.style.animationDelay = (idx * 0.13) + 's';
+      } else if (!SHOW_LIST && idx === pos && pos >= 0) {
+        // fade in just the newly drawn name
+        li.classList.add('appearing');
+      }
+      listEl.appendChild(li);
+    });
+  }
+
+  // (re)randomise everything, back to intro state
+  function randomise() {
+    order = shuffle(names);
+    pos = -1;
+    renderList(true);
+    answerEl.classList.remove('visible');
+    setTimeout(() => {
+      answerEl.textContent = INTRO_MESSAGE;
+      answerEl.classList.add('intro');
+      answerEl.classList.add('visible');
+    }, 200);
+  }
+
+  // advance to the next name; once past the last, show END_MESSAGE and stop
+  function next() {
+    if (busy || order.length === 0) return;
+    if (pos >= order.length) return; // already finished — ignore further clicks
+    busy = true;
+
+    pos = pos + 1; // pos === order.length means "all done"
+    const finished = pos >= order.length;
+
+    answerEl.classList.remove('visible');
+    answerEl.classList.remove('intro');
+    wrap.classList.add('shaking');
+    turbulence = 0.9; // whip up the snow
+    setTimeout(() => wrap.classList.remove('shaking'), 900);
+
+    setTimeout(() => {
+      if (finished) {
+        answerEl.textContent = END_MESSAGE;
+        answerEl.classList.add('intro'); // red, like the intro
+      } else {
+        answerEl.textContent = order[pos];
+      }
+      answerEl.classList.add('visible');
+      renderList();
+      busy = false;
+    }, 1300);
+  }
+
+  // globe → next name
+  wrap.addEventListener('click', next);
+  wrap.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); next(); }
+  });
+
+  // base → re-randomise (don't let the click bubble up to the globe)
+  base.addEventListener('click', (e) => { e.stopPropagation(); if (!busy) randomise(); });
+  base.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (!busy) randomise(); }
+  });
+
+  // initial shuffle + intro message (names.json may re-randomise once it loads)
+  order = shuffle(names);
+  renderList(true);
+  answerEl.textContent = INTRO_MESSAGE;
+  answerEl.classList.add('intro');
+  requestAnimationFrame(() => requestAnimationFrame(() => answerEl.classList.add('visible')));
+
+</script>
+
+</body>
+</html>

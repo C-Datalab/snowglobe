@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lucky 13 — Haunted Pokie</title>
+<link href="https://fonts.googleapis.com/css2?family=Limelight&family=Oswald:wght@500;600&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --u: 56px;                 /* base unit — JS (fitMachine) resizes to fill the page */
+    --gold-hi: #f6e27a;
+    --gold: #d4af37;
+    --gold-lo: #8a5a1a;
+    --chrome-hi: #d8dce2;
+    --chrome-lo: #6b6f78;
+    --cream: #f3ecd8;
+    --amber: #ffc14d;
+    --red: #e03535;
+    --green: #6fdc8c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(ellipse at top, #1c1016, #070508 70%);
+    color: #aab2c0;
+    font-family: 'Oswald', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.5rem, 1.4vh, 1rem);
+    padding: clamp(0.6rem, 1.5vh, 1.5rem);
+    overflow: hidden;
+  }
+  .stage { display: flex; align-items: center; justify-content: center; gap: clamp(1rem, 3.5vw, 3.5rem); flex-wrap: wrap; }
+
+  /* ===== red-marble texture (shared by dome, side pillars, belly) ===== */
+  .marble {
+    background:
+      radial-gradient(circle at 22% 30%, rgba(255,190,200,0.30) 0%, transparent 22%),
+      radial-gradient(circle at 70% 15%, rgba(255,220,180,0.22) 0%, transparent 18%),
+      radial-gradient(circle at 82% 62%, rgba(255,170,190,0.25) 0%, transparent 24%),
+      radial-gradient(circle at 40% 80%, rgba(255,200,160,0.18) 0%, transparent 20%),
+      radial-gradient(circle at 55% 45%, rgba(120,20,40,0.55) 0%, transparent 45%),
+      radial-gradient(1.5px 1.5px at 30% 55%, rgba(255,235,190,0.8) 45%, transparent 55%),
+      radial-gradient(1.5px 1.5px at 62% 28%, rgba(255,235,190,0.7) 45%, transparent 55%),
+      radial-gradient(1.5px 1.5px at 78% 82%, rgba(255,235,190,0.7) 45%, transparent 55%),
+      radial-gradient(1.5px 1.5px at 14% 76%, rgba(255,235,190,0.6) 45%, transparent 55%),
+      linear-gradient(160deg, #7c2436 0%, #5a1420 45%, #431019 100%);
+  }
+  .goldrim { border: calc(var(--u) * 0.05) solid; border-image: linear-gradient(160deg, var(--gold-hi), var(--gold-lo) 45%, var(--gold-hi) 75%, var(--gold-lo)) 1; }
+
+  /* ===== cabinet ===== */
+  .machine {
+    position: relative;
+    width: calc(var(--u) * 8.6);
+    filter: drop-shadow(0 26px 40px rgba(0,0,0,0.85));
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* dome top */
+  .dome {
+    position: relative;
+    height: calc(var(--u) * 2.1);
+    border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+    border: calc(var(--u) * 0.09) solid transparent;
+    border-bottom: none;
+    background:
+      linear-gradient(160deg, var(--gold-hi), var(--gold-lo) 40%, var(--gold-hi) 70%, var(--gold-lo)) border-box;
+    overflow: hidden;
+  }
+  .dome .marble { position: absolute; inset: 0; border-radius: 50% 50% 0 0 / 100% 100% 0 0; }
+  .dome .shine {
+    position: absolute; inset: 0;
+    border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+    background: linear-gradient(115deg, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.05) 30%, transparent 50%);
+  }
+  .medallion {
+    position: absolute;
+    top: 16%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(var(--u) * 0.85);
+    height: calc(var(--u) * 0.85);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 35% 30%, #fff5cf, var(--gold) 45%, var(--gold-lo) 85%);
+    box-shadow: 0 0 0 calc(var(--u) * 0.06) #3a2408, 0 0 0 calc(var(--u) * 0.1) var(--gold), 0 4px 10px rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Limelight', cursive;
+    font-size: calc(var(--u) * 0.4);
+    color: #4a1015;
+  }
+
+  /* chrome band with title */
+  .titleband {
+    background: linear-gradient(180deg, var(--chrome-hi), #9ba0a8 30%, var(--chrome-lo) 60%, #43464d);
+    padding: calc(var(--u) * 0.1) calc(var(--u) * 0.35);
+  }
+  .titleplate {
+    background: linear-gradient(180deg, #24262b, #101114);
+    border-radius: calc(var(--u) * 0.12);
+    text-align: center;
+    padding: calc(var(--u) * 0.06) 0;
+    font-family: 'Limelight', cursive;
+    font-size: calc(var(--u) * 0.52);
+    color: var(--gold);
+    letter-spacing: 0.14em;
+    text-shadow: 0 0 12px rgba(255, 200, 90, 0.55);
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.8);
+  }
+
+  /* mid body: chrome face holding strip + reels + buttons */
+  .body-mid {
+    background: linear-gradient(180deg, #7d828c, #55585f 40%, #3c3f46);
+    border-left: calc(var(--u) * 0.28) solid transparent;
+    border-right: calc(var(--u) * 0.28) solid transparent;
+    background-clip: padding-box;
+    position: relative;
+  }
+  /* marble side pillars */
+  .pillar {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: calc(var(--u) * 0.28);
+    z-index: 1;
+  }
+  .pillar.l { left: calc(var(--u) * -0.28); border-right: 2px solid var(--gold-lo); }
+  .pillar.r { right: calc(var(--u) * -0.28); border-left: 2px solid var(--gold-lo); }
+  .inner { padding: calc(var(--u) * 0.22) calc(var(--u) * 0.3) calc(var(--u) * 0.26); }
+
+  /* glowing status strip (the lit yellow window) */
+  .lightstrip {
+    margin: 0 auto calc(var(--u) * 0.22);
+    width: 92%;
+    min-height: calc(var(--u) * 0.52);
+    border-radius: calc(var(--u) * 0.08);
+    background:
+      repeating-linear-gradient(90deg, rgba(120,70,0,0.16) 0 2px, transparent 2px 9px),
+      linear-gradient(180deg, #ffe9a3, #ffc94d 55%, #e8a92e);
+    box-shadow:
+      inset 0 2px 6px rgba(120, 60, 0, 0.5),
+      0 0 18px rgba(255, 200, 80, 0.45),
+      0 0 0 calc(var(--u) * 0.045) var(--gold-lo);
+    display: flex; align-items: center; justify-content: center;
+    font-size: calc(var(--u) * 0.3);
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    color: #5a2408;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 2px 8px;
+  }
+  .lightstrip.end { color: #0d4d22; }
+
+  /* reel window */
+  .reelframe {
+    position: relative;
+    background: linear-gradient(180deg, #24262b, #17181c);
+    border-radius: calc(var(--u) * 0.14);
+    padding: calc(var(--u) * 0.16);
+    box-shadow: inset 0 3px 9px rgba(0,0,0,0.8), 0 0 0 calc(var(--u) * 0.05) var(--gold-lo);
+  }
+  .reelbox {
+    display: flex;
+    gap: calc(var(--u) * 0.14);
+    justify-content: center;
+    transition: filter 0.7s ease, opacity 0.7s ease;
+  }
+  .revealed .reelbox { filter: blur(3px) brightness(0.45) saturate(0.6); }
+  .reel {
+    width: calc(var(--u) * 2.2);
+    height: calc(var(--u) * 3);
+    overflow: hidden;
+    border-radius: calc(var(--u) * 0.1);
+    background: linear-gradient(90deg, #d9d0b8, var(--cream) 20%, var(--cream) 80%, #d9d0b8);
+    box-shadow: 0 0 0 calc(var(--u) * 0.055) var(--gold), inset 0 0 10px rgba(60,40,10,0.25);
+    position: relative;
+  }
+  /* glass shading + payline per reel */
+  .reel::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.55) 100%);
+    pointer-events: none;
+  }
+  .reelframe .payline {
+    position: absolute;
+    left: calc(var(--u) * 0.1); right: calc(var(--u) * 0.1);
+    top: 50%; height: 2px; margin-top: -1px;
+    background: rgba(255, 80, 80, 0.4);
+    z-index: 2; pointer-events: none;
+  }
+  .strip { display: flex; flex-direction: column; will-change: transform; }
+  .strip .sym {
+    height: var(--u);
+    line-height: var(--u);
+    text-align: center;
+    font-size: calc(var(--u) * 0.62);
+  }
+  .sym .seven {
+    font-family: 'Limelight', cursive;
+    font-size: calc(var(--u) * 0.72);
+    color: var(--red);
+    text-shadow: 1px 1px 0 #7a1010;
+  }
+  .sym .barword {
+    display: inline-block;
+    font-weight: 600;
+    font-size: calc(var(--u) * 0.4);
+    letter-spacing: 0.05em;
+    color: #17181c;
+    border: 3px solid #17181c;
+    border-radius: 4px;
+    padding: 0 calc(var(--u) * 0.09);
+    line-height: 1.4;
+    vertical-align: middle;
+    background: #ffd75e;
+  }
+  /* win flash on the bezel */
+  .reelframe.win .reel { animation: winPulse 0.35s ease 2; }
+  @keyframes winPulse {
+    50% { box-shadow: 0 0 0 calc(var(--u) * 0.055) var(--gold-hi), 0 0 22px rgba(255, 210, 90, 0.95), inset 0 0 10px rgba(60,40,10,0.25); }
+  }
+
+  /* the name, revealed over the glass */
+  .nameplate {
+    position: absolute;
+    inset: calc(var(--u) * 0.16);
+    display: flex; align-items: center; justify-content: center;
+    text-align: center;
+    z-index: 3;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--amber);
+    text-shadow: 0 0 14px rgba(255, 193, 77, 0.85), 0 0 34px rgba(255, 160, 40, 0.5);
+    opacity: 0;
+    filter: blur(8px);
+    transition: opacity 0.8s ease, filter 0.8s ease;
+    pointer-events: none;
+    text-transform: uppercase;
+  }
+  .revealed .nameplate { opacity: 1; filter: blur(0); }
+  .nameplate.endword { color: var(--red); text-shadow: 0 0 14px rgba(255, 80, 80, 0.85), 0 0 34px rgba(220, 30, 30, 0.5); }
+
+  /* button panel */
+  .btnrow {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--u) * 0.16);
+    margin-top: calc(var(--u) * 0.24);
+    padding: calc(var(--u) * 0.1) calc(var(--u) * 0.12);
+    background: linear-gradient(180deg, #4a4d55, #2e3036);
+    border-radius: calc(var(--u) * 0.1);
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.7);
+  }
+  .pbtn {
+    width: calc(var(--u) * 0.52);
+    height: calc(var(--u) * 0.34);
+    border-radius: calc(var(--u) * 0.07);
+    border: none;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.35);
+  }
+  .pbtn.r { background: linear-gradient(180deg, #ff7a6a, #c22415 60%, #8a170c); }
+  .pbtn.y { background: linear-gradient(180deg, #ffe08a, #e0a92e 60%, #a87a14); }
+  .btnrow .gap { flex: 1; }
+  .reset-btn {
+    font-family: 'Oswald', sans-serif;
+    font-size: calc(var(--u) * 0.24);
+    letter-spacing: 0.18em;
+    color: #3a2a08;
+    background: linear-gradient(180deg, #ffe08a, #e0a92e 60%, #b8860b);
+    border: none;
+    border-radius: calc(var(--u) * 0.07);
+    padding: calc(var(--u) * 0.08) calc(var(--u) * 0.24);
+    cursor: pointer;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.4);
+    transition: transform 0.08s, box-shadow 0.08s;
+  }
+  .reset-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.55); }
+
+  /* coin tray row */
+  .coinrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(var(--u) * 0.2);
+    margin-top: calc(var(--u) * 0.2);
+  }
+  .tray {
+    flex: 1;
+    height: calc(var(--u) * 0.42);
+    border-radius: calc(var(--u) * 0.08);
+    background:
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.10) 0 2px, transparent 2px 6px),
+      linear-gradient(180deg, #17181c, #060608);
+    box-shadow: inset 0 3px 7px rgba(0,0,0,0.9), 0 0 0 2px #43464d;
+  }
+  .coinbtn {
+    width: calc(var(--u) * 0.72);
+    height: calc(var(--u) * 0.42);
+    border-radius: calc(var(--u) * 0.06);
+    background: linear-gradient(180deg, #ffd75e, #d4a017 60%, #8a6208);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), 0 2px 5px rgba(0,0,0,0.6);
+  }
+
+  /* marble belly with medallions */
+  .belly {
+    position: relative;
+    height: calc(var(--u) * 2.3);
+    border: calc(var(--u) * 0.08) solid transparent;
+    border-top: none;
+    background: linear-gradient(160deg, var(--gold-hi), var(--gold-lo) 40%, var(--gold-hi) 70%, var(--gold-lo)) border-box;
+    border-radius: 0 0 calc(var(--u) * 0.22) calc(var(--u) * 0.22);
+    overflow: hidden;
+  }
+  .belly .marble { position: absolute; inset: 0; }
+  .belly .ovals {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    gap: calc(var(--u) * 0.5);
+  }
+  .oval {
+    width: calc(var(--u) * 2.1);
+    height: calc(var(--u) * 1.4);
+    border-radius: 50%;
+    background:
+      radial-gradient(ellipse at 38% 30%, #fff0c0, var(--gold) 45%, var(--gold-lo) 90%);
+    box-shadow:
+      0 0 0 calc(var(--u) * 0.05) #3a2408,
+      0 0 0 calc(var(--u) * 0.09) var(--gold),
+      0 5px 12px rgba(0,0,0,0.6),
+      inset 0 -4px 10px rgba(90, 50, 5, 0.6);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Limelight', cursive;
+    font-size: calc(var(--u) * 0.34);
+    color: #57160c;
+    letter-spacing: 0.1em;
+  }
+  /* plinth */
+  .plinth {
+    height: calc(var(--u) * 0.34);
+    margin: 0 calc(var(--u) * -0.12);
+    border-radius: calc(var(--u) * 0.1);
+    background:
+      repeating-linear-gradient(180deg, rgba(255,240,190,0.25) 0 2px, transparent 2px 5px),
+      linear-gradient(180deg, var(--gold) 0%, var(--gold-lo) 80%);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.7);
+  }
+
+  /* ===== lever (black ball, right side) ===== */
+  .lever {
+    position: absolute;
+    right: calc(var(--u) * -0.78);
+    top: calc(var(--u) * 3.4);
+    width: calc(var(--u) * 0.8);
+    height: calc(var(--u) * 2.4);
+    cursor: pointer;
+    z-index: 4;
+  }
+  .lever .mount {
+    position: absolute;
+    left: 0;
+    top: calc(var(--u) * 1.35);
+    width: calc(var(--u) * 0.3);
+    height: calc(var(--u) * 0.75);
+    background: linear-gradient(90deg, var(--chrome-hi), #3c3f46);
+    border-radius: 0 8px 8px 0;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+  }
+  .lever .arm {
+    position: absolute;
+    left: calc(var(--u) * 0.12);
+    bottom: calc(var(--u) * 0.5);
+    width: calc(var(--u) * 0.13);
+    height: calc(var(--u) * 1.55);
+    background: linear-gradient(90deg, #c8ccd4, #7d828c);
+    border-radius: 7px;
+    transform-origin: bottom center;
+    transition: transform 0.22s cubic-bezier(.5,0,.8,.4);
+  }
+  .lever .arm::after {          /* black ball knob */
+    content: '';
+    position: absolute;
+    top: calc(var(--u) * -0.36);
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(var(--u) * 0.44);
+    height: calc(var(--u) * 0.44);
+    border-radius: 50%;
+    background: radial-gradient(circle at 32% 28%, #8a8f98, #2b2d33 55%, #0a0b0d);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.75);
+  }
+  .lever.pulled .arm { transform: rotate(150deg); }
+  .lever.spring .arm { transition: transform 0.55s cubic-bezier(.2,2.2,.4,0.8); }
+
+  /* ===== payout ticket ===== */
+  .ticket-wrap { display: flex; flex-direction: column; align-items: center; }
+  .ticket {
+    width: clamp(220px, 22vw, 320px);
+    max-height: 62vh;
+    overflow-y: auto;
+    background:
+      repeating-linear-gradient(0deg, rgba(120,90,40,0.04) 0 2px, transparent 2px 24px),
+      #f7f2e4;
+    color: #33291c;
+    font-family: 'Courier New', monospace;
+    font-size: clamp(0.8rem, 1.9vmin, 1.05rem);
+    padding: 16px 18px 22px;
+    box-shadow: 0 14px 34px rgba(0,0,0,0.6);
+    border-top: 2px dashed #b8a77e;
+  }
+  .ticket .thead {
+    text-align: center;
+    border-bottom: 1px dashed #9a8a60;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+    letter-spacing: 0.15em;
+  }
+  .ticket .thead .big { font-weight: bold; font-size: 1.15em; }
+  .ticket .line { display: flex; gap: 10px; padding: 2px 0; letter-spacing: 0.06em; animation: printLine 0.4s ease; }
+  .ticket .line .no { color: #8a7a55; }
+  .ticket .line .combo { margin-left: auto; }
+  .ticket .line.endline { justify-content: center; font-weight: bold; margin-top: 8px; letter-spacing: 0.2em; }
+  @keyframes printLine {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .ticket-label { margin-top: 8px; color: #565d6b; font-size: 0.8rem; font-style: italic; font-family: 'IM Fell English', serif; }
+
+  .hint { color: #565d6b; font-size: 0.9rem; font-style: italic; font-family: 'IM Fell English', serif; }
+  .version { position: fixed; bottom: 10px; right: 14px; color: #3c414d; font-size: 0.75rem; font-family: system-ui, sans-serif; }
+
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="machine" id="machine" role="button" tabindex="0" aria-label="Pull the lever for the next name">
+    <div class="dome">
+      <div class="marble"></div>
+      <div class="shine"></div>
+      <div class="medallion">13</div>
+    </div>
+    <div class="titleband"><div class="titleplate">LUCKY 13</div></div>
+    <div class="body-mid">
+      <div class="pillar l marble"></div>
+      <div class="pillar r marble"></div>
+      <div class="inner">
+        <div class="lightstrip" id="marquee"></div>
+        <div class="reelframe" id="reelframe">
+          <div class="reelbox" id="reelbox"></div>
+          <div class="payline"></div>
+          <div class="nameplate" id="nameplate"></div>
+        </div>
+        <div class="btnrow">
+          <button class="pbtn r" tabindex="-1" aria-hidden="true"></button>
+          <button class="pbtn r" tabindex="-1" aria-hidden="true"></button>
+          <button class="pbtn y" tabindex="-1" aria-hidden="true"></button>
+          <span class="gap"></span>
+          <button class="reset-btn" id="reshuffleBtn" aria-label="Re-randomise the list">Reset</button>
+        </div>
+        <div class="coinrow">
+          <div class="tray"></div>
+          <div class="coinbtn"></div>
+        </div>
+      </div>
+    </div>
+    <div class="belly">
+      <div class="marble"></div>
+      <div class="ovals"><div class="oval">HOUSE</div><div class="oval">WINS</div></div>
+    </div>
+    <div class="plinth"></div>
+    <div class="lever" id="lever" aria-hidden="true">
+      <div class="mount"></div>
+      <div class="arm"></div>
+    </div>
+  </div>
+
+  <div class="ticket-wrap">
+    <div class="ticket" id="ticket">
+      <div class="thead"><div class="big">LUCKY 13</div><div>· HOUSE DRAW ·</div></div>
+    </div>
+    <div class="ticket-label">payout ticket</div>
+  </div>
+</div>
+
+<p class="hint">Pull the lever (or click the machine) for the next name · Reset re-randomises</p>
+<div class="version">v2.1.0</div>
+
+<script>
+  const VERSION = '2.1.0';
+
+  // ===== CUSTOMISE YOUR MESSAGES HERE =====
+  const INTRO_MESSAGE = 'WHO WILL BE CHOSEN?';
+  const END_MESSAGE = 'ALL DONE';
+  // ========================================
+
+  // ===== BUILT-IN FALLBACK (edit names.json for the shared list) =====
+  const ANSWERS = [
+    "WARWICK", "CHRISTOPHER", "ADIYA", "JENNIFER", "MADELINE",
+    "CAMILLE", "FRANCO", "SARA", "CHUM", "MAYA"
+  ];
+  // ===================================================================
+
+  // the roll of names lives in names.json beside this file;
+  // the ANSWERS array above is only the offline / file:// fallback
+  const DEFAULTS_URL = 'names.json';
+  let names = ANSWERS.slice();
+
+  fetch(DEFAULTS_URL)
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if (d && Array.isArray(d.names) && d.names.length &&
+          JSON.stringify(d.names) !== JSON.stringify(names)) {
+        names = d.names;
+        randomise(true);
+      }
+    })
+    .catch(() => {});
+
+  /* --- symbol reel engine (3 reels, classic pokie symbols) --- */
+  const SYMBOLS = [
+    { k: 'cherry', h: '&#127826;' },                    // 🍒
+    { k: 'lemon',  h: '&#127819;' },                    // 🍋
+    { k: 'grape',  h: '&#127815;' },                    // 🍇
+    { k: 'melon',  h: '&#127817;' },                    // 🍉
+    { k: 'bell',   h: '&#128276;' },                    // 🔔
+    { k: 'star',   h: '&#11088;' },                     // ⭐
+    { k: 'seven',  h: '<span class="seven">7</span>' },
+    { k: 'bar',    h: '<span class="barword">BAR</span>' }
+  ];
+  const NSYM = SYMBOLS.length;
+  const REELS = 3;
+  const REPS = 18;               // symbol-set copies per strip
+  const BASE_SPINS = 4;          // full loops before landing
+  const STAGGER = 4;             // extra cells per reel: left-to-right landing
+  const machine = document.getElementById('machine');
+  const reelbox = document.getElementById('reelbox');
+  const reelframe = document.getElementById('reelframe');
+  const marqueeEl = document.getElementById('marquee');
+  const nameplateEl = document.getElementById('nameplate');
+  const ticketEl = document.getElementById('ticket');
+  const lever = document.getElementById('lever');
+
+  let strips = [];
+  let stripPos = [];
+
+  function u() { return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--u')); }
+
+  function buildReels() {
+    reelbox.innerHTML = '';
+    strips = []; stripPos = [];
+    for (let i = 0; i < REELS; i++) {
+      const reel = document.createElement('div');
+      reel.className = 'reel';
+      const strip = document.createElement('div');
+      strip.className = 'strip';
+      let htmlStr = '';
+      for (let r = 0; r < REPS; r++)
+        for (const s of SYMBOLS)
+          htmlStr += `<div class="sym">${s.h}</div>`;
+      strip.innerHTML = htmlStr;
+      reel.appendChild(strip);
+      reelbox.appendChild(reel);
+      strips.push(strip);
+      const start = NSYM + i;    // copy 2, different symbol per reel
+      stripPos.push(start);
+      setStrip(i, start, false);
+      reel.dataset.symbol = SYMBOLS[start % NSYM].k;
+    }
+    fitMachine();
+  }
+
+  // place strip so global cell index p sits on the payline (middle of 3 rows)
+  function setStrip(i, p, animate, dur) {
+    const s = strips[i];
+    if (!s || !s.isConnected) return; // reel was rebuilt under a pending timeout
+    const y = -(p - 1) * u();
+    s.style.transition = animate ? `transform ${dur}ms cubic-bezier(0.12, 0.68, 0.18, 1)` : 'none';
+    s.style.transform = `translateY(${y}px)`;
+    stripPos[i] = p;
+  }
+
+  // spin reel i forward to land on symbol index; returns ms
+  function spinReel(i, symIdx, extraCells) {
+    const cur = stripPos[i];
+    const curMod = cur % NSYM;
+    const travel = (symIdx - curMod + NSYM) % NSYM + BASE_SPINS * NSYM + extraCells;
+    const dest = cur + travel;
+    const dur = 750 + travel * 26;
+    setStrip(i, dest, true, dur);
+    strips[i].parentElement.dataset.symbol = SYMBOLS[symIdx].k;
+    setTimeout(() => setStrip(i, NSYM + symIdx, false), dur + 60); // silent snap to copy 2
+    return dur;
+  }
+
+  // spin all reels; targets = array of 3 symbol indices; returns ms of last landing
+  function spinTo(targets) {
+    let maxDur = 0;
+    for (let i = 0; i < REELS; i++) {
+      const dur = spinReel(i, targets[i], i * STAGGER);
+      if (dur > maxDur) maxDur = dur;
+    }
+    return maxDur;
+  }
+
+  function randomTargets(win) {
+    if (win) {
+      const s = Math.floor(Math.random() * NSYM);
+      return { t: [s, s, s], sym: SYMBOLS[s] };
+    }
+    // deliberate near-miss loser (for intro / all-done)
+    const a = Math.floor(Math.random() * NSYM);
+    const b = (a + 1 + Math.floor(Math.random() * (NSYM - 2))) % NSYM;
+    return { t: [a, b, a], sym: null };
+  }
+
+  /* --- dynamic sizing: fill most of the page --- */
+  function fitMachine() {
+    // cabinet ≈ 8.6u wide (+ lever 0.8u), ≈ 11.4u tall + hint/padding
+    const uW = (window.innerWidth * 0.94 - 340) / 9.6;
+    const uH = (window.innerHeight * 0.9 - 70) / 11.4;
+    const v = Math.max(30, Math.min(uW, uH, 100));
+    document.documentElement.style.setProperty('--u', v.toFixed(2) + 'px');
+    strips.forEach((s, i) => setStrip(i, stripPos[i], false));
+    fitName();
+  }
+  function fitName() {
+    const len = Math.max(4, (nameplateEl.textContent || '').length);
+    const w = u() * 7.0; // reel window inner width
+    nameplateEl.style.fontSize = Math.min(u() * 1.05, (w * 0.94) / (len * 0.62)) + 'px';
+  }
+  let fitTimer;
+  window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitMachine, 120); });
+
+  /* --- game state (same flow as the other tools) --- */
+  let order = [];
+  let pos = -1;
+  let busy = false;
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function setMarquee(text, cls) {
+    marqueeEl.textContent = text;
+    marqueeEl.className = 'lightstrip' + (cls ? ' ' + cls : '');
+  }
+  function hideName() {
+    reelframe.classList.remove('revealed', 'win');
+    nameplateEl.classList.remove('endword');
+  }
+  function showName(text, isEnd) {
+    nameplateEl.textContent = text;
+    nameplateEl.classList.toggle('endword', !!isEnd);
+    fitName();
+    reelframe.classList.add('revealed');
+  }
+
+  function clearTicket() { ticketEl.querySelectorAll('.line').forEach(el => el.remove()); }
+  function printTicket(n, name, comboKey) {
+    const line = document.createElement('div');
+    line.className = 'line';
+    line.innerHTML = `<span class="no"></span><span class="nm"></span><span class="combo"></span>`;
+    line.querySelector('.no').textContent = String(n).padStart(2, '0');
+    line.querySelector('.nm').textContent = name;
+    line.querySelector('.combo').textContent = '3x ' + comboKey.toUpperCase();
+    ticketEl.appendChild(line);
+    ticketEl.scrollTop = ticketEl.scrollHeight;
+  }
+  function printEnd() {
+    const line = document.createElement('div');
+    line.className = 'line endline';
+    line.textContent = '— ' + END_MESSAGE + ' —';
+    ticketEl.appendChild(line);
+    ticketEl.scrollTop = ticketEl.scrollHeight;
+  }
+
+  // force=true: programmatic restart (new list adopted) must not be blocked
+  function randomise(force) {
+    if (busy && !force) return;
+    busy = true;
+    order = shuffle(names);
+    pos = -1;
+    clearTicket();
+    hideName();
+    setMarquee(INTRO_MESSAGE, '');
+    const maxDur = spinTo(randomTargets(false).t);
+    setTimeout(() => { busy = false; }, maxDur + 120);
+  }
+
+  function pullLever() {
+    lever.classList.remove('spring');
+    lever.classList.add('pulled');
+    setTimeout(() => {
+      lever.classList.add('spring');
+      lever.classList.remove('pulled');
+    }, 240);
+  }
+
+  function next() {
+    if (busy || order.length === 0) return;
+    if (pos >= order.length) return; // finished — ignore further pulls
+    busy = true;
+    pullLever();
+    hideName();
+
+    pos++;
+    const finished = pos >= order.length;
+
+    setTimeout(() => {                       // brief beat after the lever
+      if (finished) {
+        setMarquee(END_MESSAGE, 'end');
+        const maxDur = spinTo(randomTargets(false).t); // the house wins: no combo
+        setTimeout(() => {
+          showName(END_MESSAGE, true);
+          printEnd();
+          busy = false;
+        }, maxDur + 350);
+        return;
+      }
+
+      const name = order[pos];
+      setMarquee('SPINNING…', '');
+      const { t, sym } = randomTargets(true);   // winning combination
+      const maxDur = spinTo(t);
+      setTimeout(() => {
+        reelframe.classList.add('win');         // bezel flash on the win
+        setMarquee('WINNER', '');
+        setTimeout(() => {
+          showName(name, false);                // …and the win fades to the name
+          setMarquee(name, '');
+          printTicket(pos + 1, name, sym.k);
+          busy = false;
+        }, 800);
+      }, maxDur + 250);
+    }, 200);
+  }
+
+  machine.addEventListener('click', (e) => {
+    if (e.target.closest('.reset-btn') || e.target.closest('.pbtn')) return;
+    next();
+  });
+  machine.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); next(); }
+  });
+  document.getElementById('reshuffleBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!busy) randomise();
+  });
+
+  /* --- boot --- */
+  buildReels();
+  randomise(true);
+
+</script>
+
+</body>
+</html>

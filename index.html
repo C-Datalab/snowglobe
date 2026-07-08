@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Choose Your Ritual</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600&family=IM+Fell+English:ital@0;1&family=Oswald:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --card-w: min(680px, 62vw);
+    --card-h: calc(var(--card-w) * 0.625); /* 16:10 */
+    --design-w: 1280;                      /* iframe virtual width */
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(ellipse at top, #171226, #060608 70%);
+    color: #aab2c0;
+    font-family: 'IM Fell English', serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.8rem, 2.5vh, 2rem);
+    overflow: hidden;
+    padding: 2vh 0;
+  }
+  h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 600;
+    font-size: clamp(1.3rem, 4vmin, 2.4rem);
+    color: #a99bc8;
+    text-shadow: 0 0 18px rgba(140, 100, 220, 0.4);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  /* ---- carousel ---- */
+  .carousel {
+    position: relative;
+    width: 100vw;
+    height: calc(var(--card-h) + 40px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .card {
+    position: absolute;
+    width: var(--card-w);
+    height: var(--card-h);
+    border-radius: 14px;
+    border: 1px solid rgba(150, 120, 220, 0.25);
+    background: #0a0a10;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.8);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.5s cubic-bezier(.22,.9,.35,1), opacity 0.5s, filter 0.5s, border-color 0.3s;
+    will-change: transform;
+  }
+  .card.active {
+    transform: translateX(0) scale(1);
+    z-index: 3;
+    opacity: 1;
+    filter: none;
+    border-color: rgba(180, 150, 255, 0.55);
+    box-shadow: 0 24px 70px rgba(0,0,0,0.85), 0 0 40px rgba(130, 90, 220, 0.25);
+  }
+  .card.left  { transform: translateX(calc(var(--card-w) * -0.72)) scale(0.72); }
+  .card.right { transform: translateX(calc(var(--card-w) *  0.72)) scale(0.72); }
+  .card.left, .card.right { z-index: 2; opacity: 0.45; filter: saturate(0.6) brightness(0.7); }
+  .card.hiddenSide { transform: translateX(0) scale(0.4); opacity: 0; z-index: 1; pointer-events: none; }
+
+  /* live scaled preview */
+  .card iframe {
+    width: calc(var(--design-w) * 1px);
+    height: calc(var(--design-w) * 0.625px);
+    transform-origin: top left;
+    /* scale set inline by JS: card-w / design-w */
+    border: 0;
+    pointer-events: none;
+  }
+  .card .label {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    padding: 14px 18px 12px;
+    background: linear-gradient(180deg, transparent, rgba(5, 4, 12, 0.92) 55%);
+    pointer-events: none;
+  }
+  .card .label .t {
+    font-family: 'Oswald', sans-serif;
+    font-size: clamp(1rem, 2.4vmin, 1.5rem);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #e6ddf5;
+  }
+  .card .label .b {
+    font-style: italic;
+    font-size: clamp(0.8rem, 1.8vmin, 1rem);
+    color: #8d84a8;
+  }
+  .card.active .label .t { text-shadow: 0 0 14px rgba(150, 110, 240, 0.6); }
+
+  /* arrows */
+  .arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 5;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    border: 1px solid rgba(150, 120, 220, 0.3);
+    background: rgba(12, 10, 22, 0.7);
+    color: #b9a4e0;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: box-shadow 0.2s, border-color 0.2s, background 0.2s;
+  }
+  .arrow:hover { border-color: rgba(180, 150, 255, 0.7); box-shadow: 0 0 18px rgba(130, 90, 220, 0.4); background: rgba(20, 16, 36, 0.9); }
+  .arrow.prev { left: max(12px, calc(50vw - var(--card-w) * 1.18)); }
+  .arrow.next { right: max(12px, calc(50vw - var(--card-w) * 1.18)); }
+
+  /* dots */
+  .dots { display: flex; gap: 10px; }
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 1px solid rgba(150, 120, 220, 0.5);
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.25s, box-shadow 0.25s;
+  }
+  .dot.on { background: #8f7bb8; box-shadow: 0 0 10px rgba(140, 100, 220, 0.7); }
+
+  .go-btn {
+    font-family: 'Oswald', sans-serif;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    font-size: clamp(0.9rem, 2.2vmin, 1.15rem);
+    background: linear-gradient(180deg, #2b2140, #171126);
+    color: #cdbfe8;
+    border: 1px solid rgba(150, 120, 220, 0.4);
+    border-radius: 8px;
+    padding: 13px 42px;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.6);
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.1s;
+  }
+  .go-btn:hover { border-color: rgba(180, 150, 255, 0.8); box-shadow: 0 8px 30px rgba(130, 90, 220, 0.35); }
+  .go-btn:active { transform: translateY(2px); }
+
+  .hint { color: #565d6b; font-size: 0.9rem; font-style: italic; }
+  .version {
+    position: fixed;
+    bottom: 10px;
+    right: 14px;
+    color: #3c414d;
+    font-size: 0.75rem;
+    font-family: system-ui, sans-serif;
+  }
+</style>
+</head>
+<body>
+
+<h1>Choose Your Ritual</h1>
+
+<div class="carousel" id="carousel">
+  <button class="arrow prev" id="prevBtn" aria-label="Previous tool">&#8592;</button>
+  <button class="arrow next" id="nextBtn" aria-label="Next tool">&#8594;</button>
+</div>
+
+<div class="dots" id="dots"></div>
+<button class="go-btn" id="goBtn">Begin</button>
+<p class="hint">Browse with the arrows · click a card or press Begin</p>
+<div class="version">v1.2.0</div>
+
+<script>
+  const VERSION = '1.2.0';
+
+  // ===== TOOL REGISTRY — add a new variant: drop in its file, add a line =====
+  const TOOLS = [
+    {
+      id: 'snowglobe',
+      title: 'Haunted Snow Globe',
+      blurb: 'Shake the globe; the spirits pick the next name.',
+      file: 'haunted-snowglobe.html'
+    },
+    {
+      id: 'departures',
+      title: 'Spectral Departures',
+      blurb: 'A split-flap board calls each passenger in turn.',
+      file: 'departures-board.html'
+    },
+    {
+      id: 'pokie',
+      title: 'Lucky 13',
+      blurb: 'Pull the lever; the reels spell out the next name.',
+      file: 'poker-machine.html'
+    }
+  ];
+  // ==========================================================================
+
+  const LAST_KEY = 'hsg_last_tool';
+  const carousel = document.getElementById('carousel');
+  const dotsEl = document.getElementById('dots');
+  const DESIGN_W = 1280;
+
+  let active = Math.max(0, TOOLS.findIndex(t => t.id === localStorage.getItem(LAST_KEY)));
+
+  // build cards + dots
+  const cards = TOOLS.map((tool, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', tool.title);
+    const frame = document.createElement('iframe');
+    frame.src = tool.file;
+    frame.loading = 'lazy';
+    frame.tabIndex = -1;
+    frame.title = tool.title + ' preview';
+    const label = document.createElement('div');
+    label.className = 'label';
+    label.innerHTML = '<div class="t"></div><div class="b"></div>';
+    label.querySelector('.t').textContent = tool.title;
+    label.querySelector('.b').textContent = tool.blurb;
+    card.append(frame, label);
+    card.addEventListener('click', () => {
+      if (i === active) launch();
+      else { active = i; render(); }
+    });
+    carousel.appendChild(card);
+
+    const dot = document.createElement('button');
+    dot.className = 'dot';
+    dot.setAttribute('aria-label', tool.title);
+    dot.addEventListener('click', () => { active = i; render(); });
+    dotsEl.appendChild(dot);
+    return card;
+  });
+
+  // scale iframes so the tool's full page fits the card
+  function scaleFrames() {
+    const cardW = cards[0].offsetWidth;
+    const s = cardW / DESIGN_W;
+    document.querySelectorAll('.card iframe').forEach(f => {
+      f.style.transform = `scale(${s})`;
+    });
+  }
+
+  function render() {
+    const n = TOOLS.length;
+    cards.forEach((card, i) => {
+      card.className = 'card';
+      const d = (i - active + n) % n;
+      if (d === 0) card.classList.add('active');
+      else if (d === 1) card.classList.add('right');
+      else if (d === n - 1) card.classList.add('left');
+      else card.classList.add('hiddenSide');
+    });
+    [...dotsEl.children].forEach((dot, i) => dot.classList.toggle('on', i === active));
+  }
+
+  function launch() {
+    localStorage.setItem(LAST_KEY, TOOLS[active].id);
+    location.href = TOOLS[active].file;
+  }
+
+  document.getElementById('prevBtn').addEventListener('click', () => { active = (active - 1 + TOOLS.length) % TOOLS.length; render(); });
+  document.getElementById('nextBtn').addEventListener('click', () => { active = (active + 1) % TOOLS.length; render(); });
+  document.getElementById('goBtn').addEventListener('click', launch);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft')  { active = (active - 1 + TOOLS.length) % TOOLS.length; render(); }
+    if (e.key === 'ArrowRight') { active = (active + 1) % TOOLS.length; render(); }
+    if (e.key === 'Enter') launch();
+  });
+
+  let rsTimer;
+  window.addEventListener('resize', () => { clearTimeout(rsTimer); rsTimer = setTimeout(scaleFrames, 120); });
+
+  render();
+  scaleFrames();
+</script>
+
+</body>
+</html>

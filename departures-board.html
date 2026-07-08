@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spectral Departures</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --board-bg: #0b0c0f;
+    --cell-bg: #17181d;
+    --cell-edge: #000;
+    --amber: #ffc14d;
+    --name-col: #ffd75e;
+    --white-col: #e8ecf2;
+    --dim-col: #6a6f7a;
+    --green: #6fdc8c;
+    --red: #ff5c5c;
+    /* flap cell size — JS (fitBoard) resizes --ch to fill the page */
+    --ch: clamp(18px, 3.4vmin, 34px);
+    --cw: calc(var(--ch) * 0.72);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(ellipse at top, #14161d, #060709 70%);
+    color: #aab2c0;
+    font-family: 'Oswald', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.6rem, 1.6vh, 1.4rem);
+    padding: clamp(0.8rem, 2vh, 2rem);
+  }
+  h1 {
+    font-weight: 600;
+    font-size: clamp(1.2rem, 4vmin, 2.2rem);
+    letter-spacing: 0.35em;
+    color: var(--amber);
+    text-shadow: 0 0 18px rgba(255, 190, 80, 0.35);
+    text-transform: uppercase;
+  }
+  h1 .sub { color: #7d8494; font-size: 0.55em; letter-spacing: 0.5em; display: block; text-align: center; margin-top: 2px; }
+
+  /* ---- board ---- */
+  .board {
+    background: linear-gradient(180deg, #101218, var(--board-bg) 30%);
+    border: 1px solid #23252c;
+    border-radius: 10px;
+    padding: clamp(10px, 2vmin, 22px) clamp(12px, 2.4vmin, 26px);
+    box-shadow: 0 24px 60px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.04);
+    max-width: 96vw;
+    overflow-x: auto;
+  }
+  .colheads, .row {
+    display: grid;
+    grid-template-columns: auto auto auto auto auto;
+    gap: calc(var(--cw) * 0.9);
+    align-items: center;
+    justify-content: start;
+    margin: calc(var(--ch) * 0.22) 0;
+  }
+  .colheads {
+    color: #7d8494;
+    font-size: calc(var(--ch) * 0.42);
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    border-bottom: 1px solid #23252c;
+    padding-bottom: 6px;
+    margin-bottom: calc(var(--ch) * 0.3);
+  }
+  .grp { display: flex; gap: 2px; }
+  .cell {
+    width: var(--cw);
+    height: var(--ch);
+    line-height: var(--ch);
+    text-align: center;
+    background: linear-gradient(180deg, #1d1f26 0%, var(--cell-bg) 48%, #101116 52%, #14151a 100%);
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px var(--cell-edge), 0 1px 0 rgba(255,255,255,0.03);
+    color: var(--white-col);
+    font-size: calc(var(--ch) * 0.62);
+    font-weight: 500;
+    position: relative;
+    overflow: hidden;
+    text-transform: uppercase;
+  }
+  /* flap seam */
+  .cell::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    top: 50%;
+    height: 1px;
+    background: rgba(0,0,0,0.75);
+    pointer-events: none;
+  }
+  .cell.spin { animation: flapTick 0.09s linear infinite; }
+  @keyframes flapTick {
+    0%   { transform: scaleY(1); filter: brightness(1); }
+    50%  { transform: scaleY(0.82); filter: brightness(1.25); }
+    100% { transform: scaleY(1); filter: brightness(1); }
+  }
+  .grp.name .cell { color: var(--name-col); }
+  .row.done .grp.name .cell,
+  .row.done .grp.flight .cell,
+  .row.done .grp.gate .cell { color: var(--dim-col); }
+  .row.done .grp.status .cell { color: var(--green); }
+  .row.current .grp.status .cell { color: var(--amber); }
+
+  /* two-lamp indicator (lit while a row is boarding) */
+  .grp.lamps {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: calc(var(--ch) * 0.14);
+    padding-right: 2px;
+  }
+  .lamp {
+    width: calc(var(--ch) * 0.26);
+    height: calc(var(--ch) * 0.26);
+    border-radius: 50%;
+    background: #1a1c22;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.8), 0 0 0 1px #000;
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+  .row.current .lamp {
+    background: radial-gradient(circle at 35% 30%, #ffe9b0, var(--amber) 60%, #8a5f14);
+    box-shadow: 0 0 8px rgba(255, 193, 77, 0.8), 0 0 0 1px #000;
+  }
+  /* real boards alternated the two lamps */
+  .row.current .lamp:nth-child(1) { animation: lampAlt 1.6s steps(1) infinite; }
+  .row.current .lamp:nth-child(2) { animation: lampAlt 1.6s steps(1) infinite 0.8s; }
+  @keyframes lampAlt {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; box-shadow: 0 0 0 1px #000; }
+  }
+
+  /* message strip */
+  .strip {
+    display: flex;
+    gap: 2px;
+    justify-content: center;
+    margin-bottom: calc(var(--ch) * 0.4);
+  }
+  .strip .cell { color: var(--red); }
+  .strip.intro .cell { color: var(--red); }
+  .strip.endmsg .cell { color: var(--green); }
+
+  /* controls */
+  .controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .btn {
+    font-family: 'Oswald', sans-serif;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    font-size: clamp(0.85rem, 2vmin, 1.1rem);
+    background: linear-gradient(180deg, #262a33, #14161c);
+    color: var(--amber);
+    border: 1px solid #3a3f4c;
+    border-radius: 8px;
+    padding: 12px 30px;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06);
+    transition: transform 0.1s, box-shadow 0.15s, border-color 0.15s;
+  }
+  .btn:hover { border-color: var(--amber); box-shadow: 0 6px 24px rgba(255,190,80,0.18); }
+  .btn:active { transform: translateY(2px); }
+  .btn.secondary { color: #8b93a3; padding: 12px 18px; }
+  .btn.secondary:hover { border-color: #8b93a3; box-shadow: none; }
+  .btn:disabled { opacity: 0.45; cursor: default; }
+
+  .hint { color: #565d6b; font-size: 0.9rem; font-style: italic; font-family: 'IM Fell English', serif; }
+  .version {
+    position: fixed;
+    bottom: 10px;
+    right: 14px;
+    color: #3c414d;
+    font-size: 0.75rem;
+    font-family: system-ui, sans-serif;
+  }
+
+</style>
+</head>
+<body>
+
+<h1>Departures<span class="sub">Terminal 13</span></h1>
+
+<div class="board" id="board">
+  <div class="strip intro" id="strip" aria-live="polite"></div>
+  <div class="colheads" id="colheads">
+    <div></div><div>Flight</div><div>Passenger</div><div>Gate</div><div>Status</div>
+  </div>
+  <div id="rows"></div>
+</div>
+
+<div class="controls">
+  <button id="nextBtn" class="btn" aria-label="Call the next passenger">Next Departure</button>
+  <button id="reshuffleBtn" class="btn secondary" aria-label="Re-randomise the list">Reshuffle</button>
+</div>
+
+<p class="hint">Press the button to call the next name · reshuffle clears the board</p>
+<div class="version">v1.4.0</div>
+
+<script>
+  const VERSION = '1.4.0';
+
+  // ===== CUSTOMISE YOUR MESSAGES HERE =====
+  const INTRO_MESSAGE = 'WHO WILL BE CHOSEN?';
+  const END_MESSAGE = 'ALL DONE';
+  // ========================================
+
+  // ===== DEFAULT NAMES (fallback) =====
+  const ANSWERS = [
+    "WARWICK",
+    "CHRISTOPHER",
+    "ADIYA",
+    "JENNIFER",
+    "MADELINE",
+    "CAMILLE",
+    "FRANCO",
+    "SARA",
+    "CHUM",
+    "MAYA"
+  ];
+  // ====================================
+
+  // the roll of names lives in names.json beside this file;
+  // the ANSWERS array above is only the offline / file:// fallback
+  const DEFAULTS_URL = 'names.json';
+  let names = ANSWERS.slice();
+
+  fetch(DEFAULTS_URL)
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if (d && Array.isArray(d.names) && d.names.length &&
+          JSON.stringify(d.names) !== JSON.stringify(names)) {
+        names = d.names;
+        buildBoard();
+        randomise(true);
+      }
+    })
+    .catch(() => {});
+
+  /* --- split-flap engine --- */
+  const CHARSET = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789?!.-';
+  const TICK_MS = 42;        // per flap step
+  const CELL_STAGGER = 38;   // per-cell start delay across a group
+
+  // spin one cell forward through the charset until it lands on target
+  function spinCell(cell, target, startDelay) {
+    const t = (target || ' ').toUpperCase();
+    let idx = CHARSET.indexOf(cell.textContent);
+    if (idx < 0) idx = 0;
+    let tIdx = CHARSET.indexOf(t);
+    if (tIdx < 0) tIdx = 0; // unknown char -> blank
+    let steps = (tIdx - idx + CHARSET.length) % CHARSET.length;
+    if (steps === 0 && cell.textContent !== CHARSET[tIdx]) steps = CHARSET.length;
+    if (steps === 0) return 0; // already there
+    setTimeout(() => {
+      cell.classList.add('spin');
+      const iv = setInterval(() => {
+        idx = (idx + 1) % CHARSET.length;
+        cell.textContent = CHARSET[idx];
+        steps--;
+        if (steps <= 0) {
+          clearInterval(iv);
+          cell.classList.remove('spin');
+        }
+      }, TICK_MS);
+    }, startDelay);
+    return startDelay + steps * TICK_MS;
+  }
+
+  // spin a group of cells to spell text (left-padded with centring)
+  function spinText(cells, text, centre) {
+    const n = cells.length;
+    let s = (text || '').toUpperCase().slice(0, n);
+    if (centre) {
+      const pad = Math.floor((n - s.length) / 2);
+      s = ' '.repeat(pad) + s;
+    }
+    s = s.padEnd(n, ' ');
+    let maxEnd = 0;
+    cells.forEach((cell, i) => {
+      const end = spinCell(cell, s[i], i * CELL_STAGGER);
+      if (end > maxEnd) maxEnd = end;
+    });
+    return maxEnd;
+  }
+
+  function makeCells(parent, count) {
+    const cells = [];
+    for (let i = 0; i < count; i++) {
+      const c = document.createElement('div');
+      c.className = 'cell';
+      c.textContent = ' ';
+      parent.appendChild(c);
+      cells.push(c);
+    }
+    return cells;
+  }
+
+  /* --- board build --- */
+  const rowsEl = document.getElementById('rows');
+  const stripEl = document.getElementById('strip');
+  const nextBtn = document.getElementById('nextBtn');
+  const reshuffleBtn = document.getElementById('reshuffleBtn');
+
+  const FLIGHT_W = 6, GATE_W = 3, STATUS_W = 8;
+  let NAME_W = 12;
+  let rows = [];       // { el, flight:[], name:[], gate:[], status:[] }
+  let stripCells = [];
+  let order = [];
+  let pos = -1;
+  let busy = false;
+
+  function fmtFlight() {
+    return 'HS ' + String(Math.floor(Math.random() * 900) + 100);
+  }
+  function fmtGate() {
+    return 'ABCDEF'[Math.floor(Math.random() * 6)] +
+           String(Math.floor(Math.random() * 19) + 1).padStart(2, '0');
+  }
+
+  /* --- dynamic sizing: pick the biggest cell size that fits the page --- */
+  // width per 1px of --ch: lamps(0.26) + cells(0.72 each) + 4 group gaps(0.9*0.72)
+  // height per 1px of --ch: rows(1 + 0.44 margins) + strip(1.4) + colheads(~1.1)
+  function fitBoard() {
+    const colsCells = FLIGHT_W + NAME_W + GATE_W + STATUS_W;
+    const fixedW = 2 * (colsCells - 4) + 2 + 60;              // 2px cell gaps + lamps pad + board padding
+    const perChW = 0.26 + 0.72 * colsCells + 0.72 * 0.9 * 4;  // ch-proportional width
+    const chW = (window.innerWidth * 0.96 - fixedW) / perChW;
+
+    const chromeH = document.querySelector('h1').offsetHeight +
+                    document.querySelector('.controls').offsetHeight +
+                    document.querySelector('.hint').offsetHeight + 110; // body gaps + board padding
+    const perChH = names.length * 1.44 + 2.5;                 // rows + strip + colheads
+    const chH = (window.innerHeight - chromeH) / perChH;
+
+    const ch = Math.max(14, Math.min(chW, chH, 110));
+    document.documentElement.style.setProperty('--ch', ch.toFixed(2) + 'px');
+  }
+  let fitTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(fitBoard, 120);
+  });
+
+  // one shared column template so headings line up with the flap groups:
+  // n cells of --cw plus the 2px gaps between them; lamps col = lamp + padding
+  function colTemplate() {
+    const w = n => `calc(${n} * var(--cw) + ${(n - 1) * 2}px)`;
+    return `calc(var(--ch) * 0.26 + 2px) ${w(FLIGHT_W)} ${w(NAME_W)} ${w(GATE_W)} ${w(STATUS_W)}`;
+  }
+
+  function buildBoard() {
+    NAME_W = Math.max(10, ...names.map(n => n.length));
+    rowsEl.innerHTML = '';
+    stripEl.innerHTML = '';
+    rows = [];
+    const tpl = colTemplate();
+    document.getElementById('colheads').style.gridTemplateColumns = tpl;
+    const stripW = Math.max(INTRO_MESSAGE.length, END_MESSAGE.length, NAME_W + FLIGHT_W + GATE_W + STATUS_W);
+    stripCells = makeCells(stripEl, stripW);
+    names.forEach(() => {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.style.gridTemplateColumns = tpl;
+      const g0 = document.createElement('div'); g0.className = 'grp lamps';
+      g0.innerHTML = '<div class="lamp"></div><div class="lamp"></div>';
+      const g1 = document.createElement('div'); g1.className = 'grp flight';
+      const g2 = document.createElement('div'); g2.className = 'grp name';
+      const g3 = document.createElement('div'); g3.className = 'grp gate';
+      const g4 = document.createElement('div'); g4.className = 'grp status';
+      row.append(g0, g1, g2, g3, g4);
+      rowsEl.appendChild(row);
+      rows.push({
+        el: row,
+        flight: makeCells(g1, FLIGHT_W),
+        name: makeCells(g2, NAME_W),
+        gate: makeCells(g3, GATE_W),
+        status: makeCells(g4, STATUS_W)
+      });
+    });
+    fitBoard();
+  }
+
+  // Fisher–Yates shuffle
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // wipe & restart: blank every row, reshuffle, intro message
+  // force=true: programmatic restart (new list adopted) must not be blocked
+  function randomise(force) {
+    if (busy && !force) return;
+    busy = true;
+    order = shuffle(names);
+    pos = -1;
+    let maxEnd = 0;
+    rows.forEach(r => {
+      r.el.classList.remove('current', 'done');
+      maxEnd = Math.max(maxEnd,
+        spinText(r.flight, ''), spinText(r.name, ''),
+        spinText(r.gate, ''), spinText(r.status, ''));
+    });
+    stripEl.classList.remove('endmsg');
+    stripEl.classList.add('intro');
+    maxEnd = Math.max(maxEnd, spinText(stripCells, INTRO_MESSAGE, true));
+    setTimeout(() => { busy = false; }, maxEnd + 80);
+  }
+
+  // advance: fill the next row top-to-bottom; after the last, END message
+  function next() {
+    if (busy || order.length === 0) return;
+    if (pos >= order.length) return; // finished — ignore further clicks
+    busy = true;
+    pos++;
+    const finished = pos >= order.length;
+    let maxEnd = 0;
+
+    // previous row flips to DEPARTED
+    if (pos > 0) {
+      const prev = rows[pos - 1];
+      prev.el.classList.remove('current');
+      prev.el.classList.add('done');
+      maxEnd = Math.max(maxEnd, spinText(prev.status, 'DEPARTED'));
+    }
+
+    if (finished) {
+      stripEl.classList.remove('intro');
+      stripEl.classList.add('endmsg');
+      maxEnd = Math.max(maxEnd, spinText(stripCells, END_MESSAGE, true));
+    } else {
+      if (pos === 0) {
+        // clear the intro question once boarding begins
+        maxEnd = Math.max(maxEnd, spinText(stripCells, 'NOW BOARDING', true));
+      }
+      const r = rows[pos];
+      r.el.classList.add('current');
+      maxEnd = Math.max(maxEnd, spinText(r.flight, fmtFlight()));
+      maxEnd = Math.max(maxEnd, spinText(r.name, order[pos]));
+      maxEnd = Math.max(maxEnd, spinText(r.gate, fmtGate()));
+      maxEnd = Math.max(maxEnd, spinText(r.status, 'BOARDING'));
+    }
+    setTimeout(() => { busy = false; }, maxEnd + 80);
+  }
+
+  nextBtn.addEventListener('click', next);
+  reshuffleBtn.addEventListener('click', randomise);
+  document.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && document.getElementById('editModal').hidden
+        && document.activeElement.tagName !== 'BUTTON' && document.activeElement.tagName !== 'TEXTAREA') {
+      e.preventDefault(); next();
+    }
+  });
+
+  /* --- boot --- */
+  buildBoard();
+  randomise();
+
+</script>
+
+</body>
+</html>
