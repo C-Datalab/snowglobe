@@ -55,7 +55,6 @@
     position: relative;
     width: calc(var(--u) * 8.6);
     filter: drop-shadow(0 26px 40px rgba(0,0,0,0.85));
-    cursor: pointer;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
   }
@@ -350,51 +349,51 @@
     box-shadow: 0 8px 18px rgba(0,0,0,0.7);
   }
 
-  /* ===== lever (black ball, right side) ===== */
-  .lever {
-    position: absolute;
-    right: calc(var(--u) * -0.78);
-    top: calc(var(--u) * 3.4);
-    width: calc(var(--u) * 0.8);
-    height: calc(var(--u) * 2.4);
+  /* ===== SPIN button ===== */
+  .spinrow { margin-top: calc(var(--u) * 0.2); }
+  .spin-btn {
+    width: 100%;
+    font-family: 'Limelight', cursive;
+    font-size: calc(var(--u) * 0.44);
+    letter-spacing: 0.35em;
+    text-indent: 0.35em; /* balance the tracking */
+    color: #fff3d6;
+    text-shadow: 0 0 10px rgba(255, 200, 90, 0.7), 0 2px 2px rgba(0,0,0,0.6);
+    background: linear-gradient(180deg, #e04545, #a31d1d 55%, #6e0d0d);
+    border: calc(var(--u) * 0.045) solid var(--gold);
+    border-radius: calc(var(--u) * 0.16);
+    padding: calc(var(--u) * 0.14) 0;
     cursor: pointer;
-    z-index: 4;
+    box-shadow: 0 calc(var(--u) * 0.08) 0 #4a0808, 0 calc(var(--u) * 0.14) 20px rgba(0,0,0,0.55), inset 0 2px 0 rgba(255,255,255,0.25);
+    transition: transform 0.08s, box-shadow 0.08s, filter 0.2s;
   }
-  .lever .mount {
+  .spin-btn:hover { filter: brightness(1.12); }
+  .spin-btn:active {
+    transform: translateY(calc(var(--u) * 0.06));
+    box-shadow: 0 calc(var(--u) * 0.02) 0 #4a0808, 0 calc(var(--u) * 0.06) 12px rgba(0,0,0,0.55), inset 0 2px 0 rgba(255,255,255,0.25);
+  }
+
+  /* ===== sparkles on the revealed name ===== */
+  .sparkle {
     position: absolute;
-    left: 0;
-    top: calc(var(--u) * 1.35);
-    width: calc(var(--u) * 0.3);
-    height: calc(var(--u) * 0.75);
-    background: linear-gradient(90deg, var(--chrome-hi), #3c3f46);
-    border-radius: 0 8px 8px 0;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+    pointer-events: none;
+    z-index: 5;
+    animation: sparkleGrow 0.7s ease forwards;
   }
-  .lever .arm {
-    position: absolute;
-    left: calc(var(--u) * 0.12);
-    bottom: calc(var(--u) * 0.5);
-    width: calc(var(--u) * 0.13);
-    height: calc(var(--u) * 1.55);
-    background: linear-gradient(90deg, #c8ccd4, #7d828c);
-    border-radius: 7px;
-    transform-origin: bottom center;
-    transition: transform 0.22s cubic-bezier(.5,0,.8,.4);
+  .sparkle svg {
+    display: block;
+    width: 100%; height: 100%;
+    fill: var(--gold-hi);
+    filter: drop-shadow(0 0 4px rgba(255, 230, 150, 0.8));
+    animation: sparkleTurn 0.7s linear forwards;
   }
-  .lever .arm::after {          /* black ball knob */
-    content: '';
-    position: absolute;
-    top: calc(var(--u) * -0.36);
-    left: 50%;
-    transform: translateX(-50%);
-    width: calc(var(--u) * 0.44);
-    height: calc(var(--u) * 0.44);
-    border-radius: 50%;
-    background: radial-gradient(circle at 32% 28%, #8a8f98, #2b2d33 55%, #0a0b0d);
-    box-shadow: 0 3px 8px rgba(0,0,0,0.75);
+  @keyframes sparkleGrow {
+    0% { transform: scale(0); }
+    50% { transform: scale(1); }
+    100% { transform: scale(0); }
   }
-  .lever.pulled .arm { transform: rotate(150deg); }
-  .lever.spring .arm { transition: transform 0.55s cubic-bezier(.2,2.2,.4,0.8); }
+  @keyframes sparkleTurn { to { transform: rotate(180deg); } }
+
 
   /* ===== payout ticket ===== */
   .ticket-wrap { display: flex; flex-direction: column; align-items: center; }
@@ -438,7 +437,7 @@
 <body>
 
 <div class="stage">
-  <div class="machine" id="machine" role="button" tabindex="0" aria-label="Pull the lever for the next name">
+  <div class="machine" id="machine">
     <div class="dome">
       <div class="marble"></div>
       <div class="shine"></div>
@@ -466,6 +465,9 @@
           <div class="tray"></div>
           <div class="coinbtn"></div>
         </div>
+        <div class="spinrow">
+          <button class="spin-btn" id="spinBtn" aria-label="Spin for the next name">SPIN</button>
+        </div>
       </div>
     </div>
     <div class="belly">
@@ -473,10 +475,6 @@
       <div class="ovals"><div class="oval">HOUSE</div><div class="oval">WINS</div></div>
     </div>
     <div class="plinth"></div>
-    <div class="lever" id="lever" aria-hidden="true">
-      <div class="mount"></div>
-      <div class="arm"></div>
-    </div>
   </div>
 
   <div class="ticket-wrap">
@@ -487,11 +485,11 @@
   </div>
 </div>
 
-<p class="hint">Pull the lever (or click the machine) for the next name · Reset re-randomises</p>
-<div class="version">v2.1.0</div>
+<p class="hint">Press SPIN for the next name · Reset re-randomises</p>
+<div class="version">v2.2.0</div>
 
 <script>
-  const VERSION = '2.1.0';
+  const VERSION = '2.2.0';
 
   // ===== CUSTOMISE YOUR MESSAGES HERE =====
   const INTRO_MESSAGE = 'WHO WILL BE CHOSEN?';
@@ -543,7 +541,6 @@
   const marqueeEl = document.getElementById('marquee');
   const nameplateEl = document.getElementById('nameplate');
   const ticketEl = document.getElementById('ticket');
-  const lever = document.getElementById('lever');
 
   let strips = [];
   let stripPos = [];
@@ -620,9 +617,9 @@
 
   /* --- dynamic sizing: fill most of the page --- */
   function fitMachine() {
-    // cabinet ≈ 8.6u wide (+ lever 0.8u), ≈ 11.4u tall + hint/padding
-    const uW = (window.innerWidth * 0.94 - 340) / 9.6;
-    const uH = (window.innerHeight * 0.9 - 70) / 11.4;
+    // cabinet ≈ 8.6u wide, ≈ 12.2u tall (incl. SPIN row) + hint/padding
+    const uW = (window.innerWidth * 0.94 - 340) / 8.8;
+    const uH = (window.innerHeight * 0.9 - 70) / 12.2;
     const v = Math.max(30, Math.min(uW, uH, 100));
     document.documentElement.style.setProperty('--u', v.toFixed(2) + 'px');
     strips.forEach((s, i) => setStrip(i, stripPos[i], false));
@@ -654,7 +651,35 @@
     marqueeEl.textContent = text;
     marqueeEl.className = 'lightstrip' + (cls ? ' ' + cls : '');
   }
+  /* --- sparkles (Comeau-style pop-in stars over the name) --- */
+  const SPARKLE_PATH = 'M26.5 25.5C19.0043 33.3697 0 34 0 34C0 34 19.1013 35.3684 26.5 43.5C33.234 50.901 34 68 34 68C34 68 36.9884 50.7065 44.5 43.5C51.6431 36.647 68 34 68 34C68 34 51.6947 32.0939 44.5 25.5C36.5605 18.2235 34 0 34 0C34 0 33.6591 17.9837 26.5 25.5Z';
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let sparkleTimer = null;
+  function spawnSparkle() {
+    const size = u() * (0.14 + Math.random() * 0.2);
+    const el = document.createElement('span');
+    el.className = 'sparkle';
+    el.style.width = el.style.height = size + 'px';
+    el.style.left = (6 + Math.random() * 88) + '%';
+    el.style.top = (8 + Math.random() * 78) + '%';
+    if (Math.random() < 0.35) el.style.filter = 'hue-rotate(-18deg) brightness(1.2)'; // occasional whiter star
+    el.innerHTML = '<svg viewBox="0 0 68 68" aria-hidden="true"><path d="' + SPARKLE_PATH + '"/></svg>';
+    nameplateEl.appendChild(el);
+    setTimeout(() => el.remove(), 750);
+  }
+  function startSparkles() {
+    if (reduceMotion || sparkleTimer) return;
+    spawnSparkle();
+    sparkleTimer = setInterval(spawnSparkle, 280);
+  }
+  function stopSparkles() {
+    clearInterval(sparkleTimer);
+    sparkleTimer = null;
+    nameplateEl.querySelectorAll('.sparkle').forEach(el => el.remove());
+  }
+
   function hideName() {
+    stopSparkles();
     reelframe.classList.remove('revealed', 'win');
     nameplateEl.classList.remove('endword');
   }
@@ -663,6 +688,7 @@
     nameplateEl.classList.toggle('endword', !!isEnd);
     fitName();
     reelframe.classList.add('revealed');
+    if (!isEnd) startSparkles(); // names sparkle; ALL DONE does not
   }
 
   function clearTicket() { ticketEl.querySelectorAll('.line').forEach(el => el.remove()); }
@@ -697,26 +723,17 @@
     setTimeout(() => { busy = false; }, maxDur + 120);
   }
 
-  function pullLever() {
-    lever.classList.remove('spring');
-    lever.classList.add('pulled');
-    setTimeout(() => {
-      lever.classList.add('spring');
-      lever.classList.remove('pulled');
-    }, 240);
-  }
 
   function next() {
     if (busy || order.length === 0) return;
     if (pos >= order.length) return; // finished — ignore further pulls
     busy = true;
-    pullLever();
     hideName();
 
     pos++;
     const finished = pos >= order.length;
 
-    setTimeout(() => {                       // brief beat after the lever
+    setTimeout(() => {                       // brief beat after the press
       if (finished) {
         setMarquee(END_MESSAGE, 'end');
         const maxDur = spinTo(randomTargets(false).t); // the house wins: no combo
@@ -745,12 +762,13 @@
     }, 200);
   }
 
-  machine.addEventListener('click', (e) => {
-    if (e.target.closest('.reset-btn') || e.target.closest('.pbtn')) return;
-    next();
-  });
-  machine.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); next(); }
+  const spinBtn = document.getElementById('spinBtn');
+  spinBtn.addEventListener('click', next);
+  document.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && document.activeElement.tagName !== 'BUTTON') {
+      e.preventDefault();
+      next();
+    }
   });
   document.getElementById('reshuffleBtn').addEventListener('click', (e) => {
     e.stopPropagation();
