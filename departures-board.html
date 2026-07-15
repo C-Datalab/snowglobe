@@ -106,11 +106,22 @@
   .row.done .grp.name .cell,
   .row.done .grp.flight .cell,
   .row.done .grp.gate .cell { color: var(--dim-col); }
+  .grp.status .cell { transition: color 0.6s ease; }
   .row.done .grp.status .cell { color: var(--green); }
   .row.done.st-warn .grp.status .cell { color: var(--amber); }
   .row.done.st-bad .grp.status .cell { color: var(--red); }
   .row.done.st-ufo .grp.status .cell { color: #b98aff; }
   .row.current .grp.status .cell { color: var(--amber); }
+  /* while the fate is still flipping, stay standard amber (no outcome foreshadowing);
+     placed after the fate rules so it wins the specificity tie */
+  .row.done.flipping .grp.status .cell { color: var(--amber); }
+  /* glow pulse as the final colour lands */
+  .row.done.settled .grp.status .cell { animation: fateGlow 0.9s ease; }
+  @keyframes fateGlow {
+    0%   { text-shadow: none; }
+    45%  { text-shadow: 0 0 16px currentColor, 0 0 5px currentColor; }
+    100% { text-shadow: none; }
+  }
 
   /* two-lamp indicator (lit while a row is boarding) */
   .grp.lamps {
@@ -203,13 +214,13 @@
 </div>
 
 <p class="hint">Press the button to call the next name · reshuffle clears the board</p>
-<div class="version">v1.5.0</div>
+<div class="version">v1.9.0</div>
 
 <script>
-  const VERSION = '1.5.0';
+  const VERSION = '1.9.0';
 
   // ===== CUSTOMISE YOUR MESSAGES HERE =====
-  const INTRO_MESSAGE = 'WHO WILL BE CHOSEN?';
+  const INTRO_MESSAGE = 'HAVE A SAFE FRIGHT...';
   const END_MESSAGE = 'ALL DONE';
   // ========================================
 
@@ -246,27 +257,33 @@
     .catch(() => {});
 
   /* --- split-flap engine --- */
-  // array (not string): the alien is a surrogate pair, so per-char indexing is required
-  const CHARSET = Array.from(' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789?!.-\u{1F47D}');
+  // SPIN_CHARS: what flickers past mid-spin (space + A-Z + 0-9 only).
+  // LAND_EXTRA: landable as the FINAL frame but never shown mid-flick
+  // (the alien mid-flicker looked weird). Arrays, not strings: the alien
+  // is a surrogate pair, so per-char indexing is required.
+  const SPIN_CHARS = Array.from(' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789');
+  const LAND_EXTRA = Array.from('?!.-\u{1F47D}');
   const TICK_MS = 42;        // per flap step
   const CELL_STAGGER = 38;   // per-cell start delay across a group
 
-  // spin one cell forward through the charset until it lands on target
+  // spin one cell forward through SPIN_CHARS until it lands on target;
+  // specials (LAND_EXTRA) spin a full loop and appear only on the last frame
   function spinCell(cell, target, startDelay) {
     const t = (target || ' ').toUpperCase();
-    let idx = CHARSET.indexOf(cell.textContent);
-    if (idx < 0) idx = 0;
-    let tIdx = CHARSET.indexOf(t);
-    if (tIdx < 0) tIdx = 0; // unknown char -> blank
-    let steps = (tIdx - idx + CHARSET.length) % CHARSET.length;
-    if (steps === 0 && cell.textContent !== CHARSET[tIdx]) steps = CHARSET.length;
+    let idx = SPIN_CHARS.indexOf(cell.textContent);
+    if (idx < 0) idx = 0; // cell currently shows a special/unknown -> treat as blank start
+    const inSpin = SPIN_CHARS.indexOf(t);
+    const landChar = (inSpin >= 0 || LAND_EXTRA.includes(t)) ? t : ' '; // unknown char -> blank
+    const tIdx = inSpin >= 0 ? inSpin : 0;
+    let steps = (tIdx - idx + SPIN_CHARS.length) % SPIN_CHARS.length;
+    if (steps === 0 && cell.textContent !== landChar) steps = SPIN_CHARS.length;
     if (steps === 0) return 0; // already there
     setTimeout(() => {
       cell.classList.add('spin');
       const iv = setInterval(() => {
-        idx = (idx + 1) % CHARSET.length;
-        cell.textContent = CHARSET[idx];
+        idx = (idx + 1) % SPIN_CHARS.length;
         steps--;
+        cell.textContent = steps <= 0 ? landChar : SPIN_CHARS[idx];
         if (steps <= 0) {
           clearInterval(iv);
           cell.classList.remove('spin');
@@ -313,16 +330,23 @@
 
   const FLIGHT_W = 6, GATE_W = 3, STATUS_W = 9; // 9 fits CANCELLED / ABDUCTED+alien
 
-  // possible fates for a called passenger (picked at random when their row retires)
+  // possible fates for a called passenger (weighted random pick when their row retires)
+  // w = relative weight: higher = more common. LANDED most common, ABDUCTED rarest.
   const FATES = [
-    { label: 'DEPARTED',   cls: 'st-ok' },
-    { label: 'LANDED',     cls: 'st-ok' },
-    { label: 'DELAYED',    cls: 'st-warn' },
-    { label: 'MISSING',    cls: 'st-bad' },
-    { label: 'CRASHED',    cls: 'st-bad' },
-    { label: 'CANCELLED',  cls: 'st-bad' },
-    { label: 'ABDUCTED\u{1F47D}', cls: 'st-ufo' }
+    { label: 'LANDED',     cls: 'st-ok',   w: 10 },
+    { label: 'DEPARTED',   cls: 'st-ok',   w: 4 },
+    { label: 'DELAYED',    cls: 'st-warn', w: 3 },
+    { label: 'CANCELLED',  cls: 'st-bad',  w: 3 },
+    { label: 'MISSING',    cls: 'st-bad',  w: 2 },
+    { label: 'CRASHED',    cls: 'st-bad',  w: 2 },
+    { label: 'ABDUCTED\u{1F47D}', cls: 'st-ufo', w: 0.5 }
   ];
+  const FATE_TOTAL_W = FATES.reduce((sum, f) => sum + f.w, 0);
+  function pickFate() {
+    let r = Math.random() * FATE_TOTAL_W;
+    for (const f of FATES) { r -= f.w; if (r < 0) return f; }
+    return FATES[0]; // float-edge fallback
+  }
   let NAME_W = 12;
   let rows = [];       // { el, flight:[], name:[], gate:[], status:[] }
   let stripCells = [];
@@ -431,41 +455,55 @@
     setTimeout(() => { busy = false; }, maxEnd + 80);
   }
 
-  // advance: fill the next row top-to-bottom; after the last, END message
+  // advance: previous row starts its fate flip immediately; after a 0.5s
+  // beat the next row (or END message) flips in. Fill rows top-to-bottom.
+  const NEXT_BEAT_MS = 500;
   function next() {
     if (busy || order.length === 0) return;
     if (pos >= order.length) return; // finished — ignore further clicks
     busy = true;
     pos++;
+    const myPos = pos; // guard token: force-randomise resets pos mid-beat
     const finished = pos >= order.length;
-    let maxEnd = 0;
+    let fateEnd = 0;
 
-    // previous row retires with a random fate
+    // previous row retires with a random fate — starts at once
     if (pos > 0) {
       const prev = rows[pos - 1];
-      const fate = FATES[Math.floor(Math.random() * FATES.length)];
+      const fate = pickFate();
       prev.el.classList.remove('current');
-      prev.el.classList.add('done', fate.cls);
-      maxEnd = Math.max(maxEnd, spinText(prev.status, fate.label));
+      prev.el.classList.add('done', fate.cls, 'flipping'); // amber while flipping
+      fateEnd = spinText(prev.status, fate.label);
+      setTimeout(() => {
+        if (!prev.el.classList.contains('done')) return; // row was reset meanwhile
+        prev.el.classList.remove('flipping');
+        prev.el.classList.add('settled'); // colour transitions in + glow pulse
+      }, fateEnd + 60);
     }
 
-    if (finished) {
-      stripEl.classList.remove('intro');
-      stripEl.classList.add('endmsg');
-      maxEnd = Math.max(maxEnd, spinText(stripCells, END_MESSAGE, true));
-    } else {
-      if (pos === 0) {
-        // clear the intro question once boarding begins
-        maxEnd = Math.max(maxEnd, spinText(stripCells, 'NOW BOARDING', true));
+    const beat = pos > 0 ? NEXT_BEAT_MS : 0; // first call has nothing to retire
+    setTimeout(() => {
+      if (pos !== myPos) return; // board was force-reset during the beat
+      let maxEnd = 0;
+      if (finished) {
+        stripEl.classList.remove('intro');
+        stripEl.classList.add('endmsg');
+        maxEnd = spinText(stripCells, END_MESSAGE, true);
+      } else {
+        if (pos === 0) {
+          // clear the intro question once boarding begins
+          maxEnd = spinText(stripCells, 'NOW BOARDING', true);
+        }
+        const r = rows[pos];
+        r.el.classList.add('current');
+        maxEnd = Math.max(maxEnd, spinText(r.flight, fmtFlight()));
+        maxEnd = Math.max(maxEnd, spinText(r.name, order[pos]));
+        maxEnd = Math.max(maxEnd, spinText(r.gate, fmtGate()));
+        maxEnd = Math.max(maxEnd, spinText(r.status, 'BOARDING'));
       }
-      const r = rows[pos];
-      r.el.classList.add('current');
-      maxEnd = Math.max(maxEnd, spinText(r.flight, fmtFlight()));
-      maxEnd = Math.max(maxEnd, spinText(r.name, order[pos]));
-      maxEnd = Math.max(maxEnd, spinText(r.gate, fmtGate()));
-      maxEnd = Math.max(maxEnd, spinText(r.status, 'BOARDING'));
-    }
-    setTimeout(() => { busy = false; }, maxEnd + 80);
+      // release when BOTH the fate flip and the new row have landed
+      setTimeout(() => { busy = false; }, Math.max(maxEnd, fateEnd - beat) + 80);
+    }, beat);
   }
 
   nextBtn.addEventListener('click', next);
