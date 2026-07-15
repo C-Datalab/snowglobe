@@ -107,6 +107,9 @@
   .row.done .grp.flight .cell,
   .row.done .grp.gate .cell { color: var(--dim-col); }
   .row.done .grp.status .cell { color: var(--green); }
+  .row.done.st-warn .grp.status .cell { color: var(--amber); }
+  .row.done.st-bad .grp.status .cell { color: var(--red); }
+  .row.done.st-ufo .grp.status .cell { color: #b98aff; }
   .row.current .grp.status .cell { color: var(--amber); }
 
   /* two-lamp indicator (lit while a row is boarding) */
@@ -200,10 +203,10 @@
 </div>
 
 <p class="hint">Press the button to call the next name · reshuffle clears the board</p>
-<div class="version">v1.4.0</div>
+<div class="version">v1.5.0</div>
 
 <script>
-  const VERSION = '1.4.0';
+  const VERSION = '1.5.0';
 
   // ===== CUSTOMISE YOUR MESSAGES HERE =====
   const INTRO_MESSAGE = 'WHO WILL BE CHOSEN?';
@@ -243,7 +246,8 @@
     .catch(() => {});
 
   /* --- split-flap engine --- */
-  const CHARSET = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789?!.-';
+  // array (not string): the alien is a surrogate pair, so per-char indexing is required
+  const CHARSET = Array.from(' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789?!.-\u{1F47D}');
   const TICK_MS = 42;        // per flap step
   const CELL_STAGGER = 38;   // per-cell start delay across a group
 
@@ -275,15 +279,15 @@
   // spin a group of cells to spell text (left-padded with centring)
   function spinText(cells, text, centre) {
     const n = cells.length;
-    let s = (text || '').toUpperCase().slice(0, n);
+    let arr = Array.from((text || '').toUpperCase()).slice(0, n);
     if (centre) {
-      const pad = Math.floor((n - s.length) / 2);
-      s = ' '.repeat(pad) + s;
+      const pad = Math.floor((n - arr.length) / 2);
+      arr = Array(pad).fill(' ').concat(arr);
     }
-    s = s.padEnd(n, ' ');
+    while (arr.length < n) arr.push(' ');
     let maxEnd = 0;
     cells.forEach((cell, i) => {
-      const end = spinCell(cell, s[i], i * CELL_STAGGER);
+      const end = spinCell(cell, arr[i], i * CELL_STAGGER);
       if (end > maxEnd) maxEnd = end;
     });
     return maxEnd;
@@ -307,7 +311,18 @@
   const nextBtn = document.getElementById('nextBtn');
   const reshuffleBtn = document.getElementById('reshuffleBtn');
 
-  const FLIGHT_W = 6, GATE_W = 3, STATUS_W = 8;
+  const FLIGHT_W = 6, GATE_W = 3, STATUS_W = 9; // 9 fits CANCELLED / ABDUCTED+alien
+
+  // possible fates for a called passenger (picked at random when their row retires)
+  const FATES = [
+    { label: 'DEPARTED',   cls: 'st-ok' },
+    { label: 'LANDED',     cls: 'st-ok' },
+    { label: 'DELAYED',    cls: 'st-warn' },
+    { label: 'MISSING',    cls: 'st-bad' },
+    { label: 'CRASHED',    cls: 'st-bad' },
+    { label: 'CANCELLED',  cls: 'st-bad' },
+    { label: 'ABDUCTED\u{1F47D}', cls: 'st-ufo' }
+  ];
   let NAME_W = 12;
   let rows = [];       // { el, flight:[], name:[], gate:[], status:[] }
   let stripCells = [];
@@ -405,7 +420,7 @@
     pos = -1;
     let maxEnd = 0;
     rows.forEach(r => {
-      r.el.classList.remove('current', 'done');
+      r.el.className = 'row'; // clears current/done and any fate colour class
       maxEnd = Math.max(maxEnd,
         spinText(r.flight, ''), spinText(r.name, ''),
         spinText(r.gate, ''), spinText(r.status, ''));
@@ -425,12 +440,13 @@
     const finished = pos >= order.length;
     let maxEnd = 0;
 
-    // previous row flips to DEPARTED
+    // previous row retires with a random fate
     if (pos > 0) {
       const prev = rows[pos - 1];
+      const fate = FATES[Math.floor(Math.random() * FATES.length)];
       prev.el.classList.remove('current');
-      prev.el.classList.add('done');
-      maxEnd = Math.max(maxEnd, spinText(prev.status, 'DEPARTED'));
+      prev.el.classList.add('done', fate.cls);
+      maxEnd = Math.max(maxEnd, spinText(prev.status, fate.label));
     }
 
     if (finished) {
