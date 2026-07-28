@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Obsidian Oracle</title>
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Eater&family=Jolly+Lodger&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-top: #0b0b1a;
+    --bg-bottom: #1a0f2e;
+    --ghost: #cfe8ff;
+    /* ball diameter scales with the smaller viewport side */
+    --bsize: clamp(300px, 66vmin, 780px);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(ellipse at top, var(--bg-bottom), var(--bg-top) 70%);
+    color: #b8a8d8;
+    font-family: 'IM Fell English', serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.6rem, 1.5vh, 1.4rem);
+    padding: clamp(0.8rem, 2vh, 2rem);
+    overflow: hidden;
+  }
+  h1 {
+    font-family: 'Eater', cursive;
+    font-weight: 400;
+    font-size: clamp(1.4rem, 4.5vmin, 2.8rem);
+    color: #8f7bb8;
+    text-shadow: 0 0 18px rgba(140, 100, 220, 0.5);
+    letter-spacing: 0.06em;
+  }
+
+  .stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2.5rem;
+    flex-wrap: wrap;
+  }
+
+  /* ---- the ball ---- */
+  .ball-wrap {
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .ball-wrap:active .ball { transform: scale(0.985); }
+  .ball {
+    position: relative;
+    width: var(--bsize);
+    height: var(--bsize);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 32% 24%, #4a4a58 0%, #26262f 22%, #101016 55%, #050508 100%);
+    box-shadow:
+      inset -18px -24px 60px rgba(0,0,0,0.85),
+      inset 8px 10px 40px rgba(120, 100, 200, 0.10),
+      0 28px 70px rgba(0,0,0,0.75),
+      0 0 55px rgba(110, 70, 200, 0.18);
+    transition: transform 0.15s;
+  }
+  .ball-wrap.shaking .ball { animation: ballShake 0.9s ease-in-out; }
+  @keyframes ballShake {
+    0%, 100% { transform: translateX(0) rotate(0deg); }
+    12% { transform: translate(-16px, 4px) rotate(-6deg); }
+    28% { transform: translate(15px, -5px) rotate(6deg); }
+    46% { transform: translate(-12px, 3px) rotate(-4deg); }
+    64% { transform: translate(10px, -3px) rotate(4deg); }
+    82% { transform: translate(-6px, 2px) rotate(-2deg); }
+  }
+  /* glass highlight */
+  .ball::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 30% 20%, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.06) 16%, transparent 32%),
+      radial-gradient(circle at 74% 82%, rgba(150,120,255,0.06) 0%, transparent 40%);
+    pointer-events: none;
+    z-index: 6;
+  }
+
+  /* ---- the window ---- */
+  .window {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 46%;
+    height: 46%;
+    border-radius: 50%;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 50% 38%, #0c1332 0%, #080e26 45%, #04081a 75%, #020510 100%);
+    box-shadow:
+      inset 0 10px 30px rgba(0,0,0,0.8),
+      inset 0 -6px 18px rgba(40, 70, 180, 0.25),
+      0 0 0 6px #08080d,
+      0 0 0 8px rgba(90, 70, 160, 0.25);
+    z-index: 3;
+  }
+  /* inner clipping layer: hard-clips composited children (blurred/transformed
+     die, bubbles) to the circle — border-radius overflow alone lets their
+     rectangular layers leak as faint corners in some browsers */
+  .depths {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    clip-path: circle(50% at 50% 50%);
+    isolation: isolate;
+  }
+  /* murk swirl while shaking */
+  .murk {
+    position: absolute;
+    inset: -20%;
+    background:
+      radial-gradient(circle at 35% 60%, rgba(60, 90, 220, 0.35) 0%, transparent 45%),
+      radial-gradient(circle at 70% 30%, rgba(100, 60, 220, 0.3) 0%, transparent 40%);
+    filter: blur(8px);
+    opacity: 0.5;
+    animation: murkDrift 11s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  @keyframes murkDrift {
+    from { transform: translate(-4%, -3%) rotate(0deg); }
+    to   { transform: translate(4%, 3%) rotate(8deg); }
+  }
+  .window.stirred .murk { animation: murkSpin 1.2s ease-out; }
+  @keyframes murkSpin {
+    from { transform: rotate(0deg) scale(1.15); opacity: 0.9; }
+    to   { transform: rotate(300deg) scale(1); opacity: 0.5; }
+  }
+  /* bubbles rise when stirred */
+  .bubble {
+    position: absolute;
+    bottom: -8%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, rgba(190,215,255,0.8), rgba(120,160,255,0.15) 70%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .window.stirred .bubble { animation: rise 1.3s ease-in forwards; }
+  @keyframes rise {
+    0%   { opacity: 0; transform: translateY(0); }
+    15%  { opacity: 0.85; }
+    100% { opacity: 0; transform: translateY(-360%); }
+  }
+
+  /* the die/triangle floats up from the depths */
+  .die {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 78%;
+    aspect-ratio: 1 / 0.9;
+    transform: translate(-50%, -46%);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 12%;
+    opacity: 0;
+    filter: blur(10px);
+    /* quick fade-out before the next shake */
+    transition: opacity 0.5s ease, filter 0.5s ease;
+  }
+  /* rounded-corner triangle: SVG polygon with fat round-joined stroke */
+  .die svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+  }
+  /* smooth fade-in out of the dark liquid */
+  .die.visible {
+    opacity: 1;
+    filter: blur(0.3px);
+    transition: opacity 1.6s ease, filter 1.6s ease;
+  }
+  .die .text {
+    font-family: 'Jolly Lodger', 'IM Fell English', serif;
+    color: var(--ghost);
+    text-align: center;
+    line-height: 1.1;
+    letter-spacing: 0.08em;
+    max-width: 82%;
+    text-shadow:
+      0 0 12px rgba(190, 220, 255, 0.9),
+      0 0 30px rgba(140, 180, 255, 0.6);
+    animation: none;
+  }
+  .die.visible .text { animation: shimmer 3.2s ease-in-out 1.5s infinite; }
+  @keyframes shimmer {
+    0%, 100% { opacity: 1;    text-shadow: 0 0 12px rgba(190,220,255,0.9), 0 0 30px rgba(140,180,255,0.6); }
+    50%      { opacity: 0.72; text-shadow: 0 0 20px rgba(190,220,255,1),   0 0 45px rgba(140,180,255,0.8); }
+  }
+  /* red for intro "8" and the end message */
+  .die.omen .text {
+    color: #ff3b3b;
+    text-shadow:
+      0 0 12px rgba(255, 60, 60, 0.9),
+      0 0 30px rgba(220, 30, 30, 0.6);
+  }
+  .die.omen.visible .text { animation: shimmerRed 3.2s ease-in-out 1.5s infinite; }
+  @keyframes shimmerRed {
+    0%, 100% { opacity: 1;    text-shadow: 0 0 12px rgba(255,60,60,0.9), 0 0 30px rgba(220,30,30,0.6); }
+    50%      { opacity: 0.72; text-shadow: 0 0 20px rgba(255,80,80,1),   0 0 45px rgba(220,30,30,0.8); }
+  }
+
+  /* ---- reset link ---- */
+  .reset {
+    font-family: 'IM Fell English', serif;
+    font-size: clamp(0.85rem, 2vmin, 1.2rem);
+    letter-spacing: 0.32em;
+    color: #6e6390;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(150, 120, 220, 0.3);
+    padding-bottom: 2px;
+    transition: color 0.2s, text-shadow 0.2s, border-color 0.2s;
+  }
+  .reset:hover {
+    color: #b9a4e0;
+    text-shadow: 0 0 12px rgba(140, 100, 220, 0.6);
+    border-color: rgba(180, 150, 255, 0.7);
+  }
+
+  /* ---- the spoken (drawn names): out of flow so the ball stays centred ---- */
+  .spoken {
+    position: fixed;
+    right: 3vw;
+    top: 50%;
+    transform: translateY(-50%);
+    min-width: 200px;
+    max-width: 300px;
+    text-align: center;
+  }
+  @media (max-width: 900px) {
+    .spoken { position: static; transform: none; }
+  }
+  .spoken h2 {
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(1rem, 2.4vmin, 1.5rem);
+    color: #6e6390;
+    letter-spacing: 0.2em;
+    margin-bottom: 0.7rem;
+  }
+  .spoken ul {
+    list-style: none;
+    font-family: 'Jolly Lodger', 'IM Fell English', serif;
+    font-size: clamp(1.1rem, 2.6vmin, 1.7rem);
+    line-height: 1.5;
+    letter-spacing: 0.08em;
+    color: #8fa8d8;
+    max-height: clamp(220px, 46vmin, 560px);
+    overflow-y: auto;
+  }
+  .spoken li { opacity: 0.55; transition: color 0.5s, opacity 0.5s, text-shadow 0.5s; }
+  .spoken li.current {
+    opacity: 1;
+    color: var(--ghost);
+    text-shadow: 0 0 10px rgba(160, 200, 255, 0.7);
+  }
+  .spoken li.appearing { animation: nameAppear 0.55s ease forwards; }
+  @keyframes nameAppear {
+    from { opacity: 0; transform: translateY(8px); filter: blur(4px); }
+    to   { transform: translateY(0); filter: blur(0); }
+  }
+
+  .hint { color: #5e5480; font-size: 0.95rem; font-style: italic; }
+  .version {
+    position: fixed;
+    bottom: 10px;
+    right: 14px;
+    color: #4a4066;
+    font-size: 0.75rem;
+    font-family: system-ui, sans-serif;
+  }
+</style>
+</head>
+<body>
+
+<h1>The Obsidian Oracle</h1>
+
+<div class="stage">
+  <div class="ball-wrap" id="ballWrap" role="button" tabindex="0" aria-label="Shake the ball for the next name">
+    <div class="ball">
+      <div class="window" id="window">
+        <div class="depths" id="depths">
+          <div class="murk"></div>
+          <div class="die" id="die">
+            <svg viewBox="0 0 100 90" aria-hidden="true">
+              <!-- fat round-joined stroke = rounded corners; scales with the die -->
+              <polygon points="50,84 9,15 91,15" fill="#1b2a72"
+                       stroke="#1b2a72" stroke-width="13" stroke-linejoin="round"/>
+            </svg>
+            <div class="text" id="dieText"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="spoken">
+    <h2>THE LIST</h2>
+    <ul id="spokenList" aria-label="Names already drawn"></ul>
+  </div>
+</div>
+
+<a class="reset" href="#" id="resetLink" aria-label="Re-randomise the list">RESET</a>
+<p class="hint">Click the ball for the next name · RESET to start over</p>
+<div class="version">v1.3.0</div>
+
+<script>
+  const VERSION = '1.3.0';
+
+  // ===== CUSTOMISE MESSAGES HERE =====
+  const INTRO_GLYPH = '8';           // shown before the first shake
+  const END_MESSAGE = 'THE ORB SLEEPS';
+  // ===================================
+
+  // ===== BUILT-IN FALLBACK (edit names.json for the shared list) =====
+  const ANSWERS = [
+    "WARWICK",
+    "CHRIS",
+    "ADIYA",
+    "JENN",
+    "CAMILLE",
+    "FRANCO",
+    "SARA",
+    "CHUM",
+    "MAYA"
+  ];
+  // ===================================================================
+
+  // the roll of names lives in names.json beside this file;
+  // the ANSWERS array above is only the offline / file:// fallback
+  const DEFAULTS_URL = 'names.json';
+  let names = ANSWERS.slice();
+
+  fetch(DEFAULTS_URL)
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if (d && Array.isArray(d.names) && d.names.length &&
+          JSON.stringify(d.names) !== JSON.stringify(names)) {
+        names = d.names;
+        randomise();
+      }
+    })
+    .catch(() => {});
+
+  const wrap = document.getElementById('ballWrap');
+  const win = document.getElementById('window');
+  const depths = document.getElementById('depths');
+  const die = document.getElementById('die');
+  const dieText = document.getElementById('dieText');
+  const resetLink = document.getElementById('resetLink');
+  const listEl = document.getElementById('spokenList');
+  let busy = false;
+  let order = [];   // shuffled names
+  let pos = -1;     // -1 = intro; 0..n-1 = current; n = finished
+
+  // Fisher–Yates shuffle
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // spawn bubbles inside the window for one stir cycle
+  function stir() {
+    depths.querySelectorAll('.bubble').forEach(b => b.remove());
+    for (let i = 0; i < 9; i++) {
+      const b = document.createElement('div');
+      b.className = 'bubble';
+      const s = 4 + Math.random() * 10;
+      b.style.width = s + 'px';
+      b.style.height = s + 'px';
+      b.style.left = (12 + Math.random() * 76) + '%';
+      b.style.animationDelay = (Math.random() * 0.35) + 's';
+      depths.appendChild(b);
+    }
+    win.classList.remove('stirred');
+    void win.offsetWidth; // restart animations
+    win.classList.add('stirred');
+  }
+
+  // fit the text to the triangle: shorter names bigger, long names shrink
+  function fitText(t) {
+    const base = Math.min(9, Math.max(3.2, 44 / Math.max(1, t.length)));
+    dieText.style.fontSize = 'calc(var(--bsize) * ' + (base / 100) + ')';
+  }
+
+  // show something on the die. omen=true renders red (intro "8" / end message)
+  function reveal(text, omen) {
+    dieText.textContent = text;
+    fitText(text);
+    die.classList.toggle('omen', !!omen);
+    die.classList.add('visible');
+  }
+
+  function renderList() {
+    listEl.innerHTML = '';
+    order.forEach((name, idx) => {
+      if (idx > pos) return;          // only names already drawn
+      const li = document.createElement('li');
+      li.textContent = name;
+      if (idx === pos) {
+        li.classList.add('current');
+        li.classList.add('appearing');
+      }
+      listEl.appendChild(li);
+    });
+  }
+
+  // (re)randomise everything, back to the waiting "8"
+  function randomise() {
+    order = shuffle(names);
+    pos = -1;
+    renderList();
+    die.classList.remove('visible');
+    setTimeout(() => reveal(INTRO_GLYPH, true), 200);
+  }
+
+  // advance to the next name; past the last, show END_MESSAGE and stop
+  function next() {
+    if (busy || order.length === 0) return;
+    if (pos >= order.length) return;  // finished — ignore further clicks
+    busy = true;
+
+    pos = pos + 1;
+    const finished = pos >= order.length;
+
+    die.classList.remove('visible');
+    wrap.classList.add('shaking');
+    stir();
+    setTimeout(() => wrap.classList.remove('shaking'), 900);
+
+    setTimeout(() => {
+      if (finished) reveal(END_MESSAGE, true);
+      else reveal(order[pos], false);
+      renderList();
+      busy = false;
+    }, 1300);
+  }
+
+  // ball → next name
+  wrap.addEventListener('click', next);
+  wrap.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); next(); }
+  });
+
+  // RESET link → re-randomise
+  resetLink.addEventListener('click', (e) => { e.preventDefault(); if (!busy) randomise(); });
+
+  // initial shuffle + waiting "8" (names.json may re-randomise once loaded)
+  order = shuffle(names);
+  renderList();
+  reveal(INTRO_GLYPH, true);
+</script>
+
+</body>
+</html>
