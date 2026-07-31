@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Ectoplasm Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Eater&family=Jolly+Lodger&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-top: #0b0b1a;
+    --bg-bottom: #1a0f2e;
+    --ghost: #cfe8ff;
+    --ecto: #59e88f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(ellipse at top, var(--bg-bottom), var(--bg-top) 70%);
+    color: #b8a8d8;
+    font-family: 'IM Fell English', serif;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  h1 {
+    position: fixed;
+    top: clamp(10px, 2.5vh, 28px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Eater', cursive;
+    font-weight: 400;
+    font-size: clamp(1.4rem, 4.5vmin, 2.8rem);
+    color: #8f7bb8;
+    text-shadow: 0 0 18px rgba(140, 100, 220, 0.5);
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    z-index: 30;
+  }
+
+  /* ---- the contraption: dominates bottom-left ---- */
+  .machine {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: min(62vw, 118vh, 1000px);
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    z-index: 10;
+  }
+  .machine svg { width: 100%; height: auto; display: block; }
+  .machine:active { transform: translateY(1px); }
+
+  /* --- idle animations --- */
+  .flame { transform-origin: 468px 452px; animation: flick 2.6s ease-in-out infinite; }
+  @keyframes flick {
+    0%, 100% { transform: scale(1) skewX(0deg); opacity: 0.95; }
+    30% { transform: scale(1.12) skewX(-4deg); opacity: 0.8; }
+    60% { transform: scale(0.92) skewX(3deg); opacity: 1; }
+  }
+  .ecto-glow { animation: glowPulse 5s ease-in-out infinite; }
+  @keyframes glowPulse { 0%,100% { opacity: 0.5; } 50% { opacity: 0.85; } }
+  .brew { animation: brewRise 3.2s linear infinite; opacity: 0; }
+  .brew.b2 { animation-delay: 1.1s; }
+  .brew.b3 { animation-delay: 2.2s; }
+  @keyframes brewRise {
+    0% { transform: translateY(0); opacity: 0; }
+    15% { opacity: 0.8; }
+    100% { transform: translateY(-46px); opacity: 0; }
+  }
+
+  /* --- run-cycle animations (svg gains .run) --- */
+  .gear-big   { transform-origin: 150px 400px; }
+  .gear-small { transform-origin: 262px 428px; }
+  .paddle     { transform-origin: 470px 380px; }
+  .run .gear-big   { animation: spinCW 1.9s cubic-bezier(0.3, 0.1, 0.5, 1); }
+  .run .gear-small { animation: spinCCW 1.9s cubic-bezier(0.3, 0.1, 0.5, 1); }
+  .run .paddle     { animation: stirIt 1.9s ease-in-out; }
+  @keyframes spinCW  { to { transform: rotate(360deg); } }
+  @keyframes spinCCW { to { transform: rotate(-360deg); } }
+  @keyframes stirIt  { 0% { transform: rotate(0); } 50% { transform: rotate(-25deg); } 100% { transform: rotate(0); } }
+
+  .skullball { transform-origin: center; }
+  .run .skullball { animation: rollSkull 1.45s cubic-bezier(0.4, 0, 0.8, 1) forwards; }
+  @keyframes rollSkull {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    55%  { transform: translate(178px, 78px) rotate(340deg); }
+    72%  { transform: translate(196px, 148px) rotate(420deg); }
+    100% { transform: translate(196px, 158px) rotate(430deg); }
+  }
+  .lever { transform-origin: 240px 292px; }
+  .run .lever { animation: tipLever 0.6s ease 1.3s; }
+  @keyframes tipLever {
+    0% { transform: rotate(0deg); } 40% { transform: rotate(9deg); } 100% { transform: rotate(0deg); }
+  }
+  .bellows { transform-origin: 386px 320px; }
+  .run .bellows { animation: squeeze 0.5s ease-in 1.45s; }
+  @keyframes squeeze {
+    0% { transform: scaleX(1); } 45% { transform: scaleX(0.6); } 100% { transform: scaleX(1); }
+  }
+  .puff { opacity: 0; transform-origin: center; }
+  .run .puff  { animation: puffOut 0.55s ease-out 1.62s; }
+  .run .puff2 { animation-delay: 1.72s; }
+  @keyframes puffOut {
+    0% { opacity: 0.9; transform: scale(0.4); }
+    100% { opacity: 0; transform: scale(1.6); }
+  }
+
+  /* ---- the bubbles ---- */
+  .bub-pos { position: fixed; left: 0; top: 0; z-index: 20; pointer-events: none; will-change: transform; }
+  .bubble {
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 32% 28%, rgba(255,255,255,0.45) 0%, rgba(200,225,255,0.10) 20%, rgba(150,120,255,0.07) 52%, rgba(120,255,200,0.09) 76%, rgba(255,255,255,0.20) 96%);
+    border: 1px solid rgba(220, 235, 255, 0.35);
+    box-shadow:
+      inset -8px -10px 24px rgba(120, 100, 220, 0.18),
+      inset 6px 8px 18px rgba(255, 255, 255, 0.14),
+      0 0 18px rgba(150, 180, 255, 0.25);
+  }
+  .bubble .bname {
+    font-family: 'Jolly Lodger', 'IM Fell English', serif;
+    color: #dff0ff;
+    letter-spacing: 0.06em;
+    text-align: center;
+    text-shadow: 0 0 10px rgba(190, 220, 255, 0.9), 0 0 24px rgba(140, 180, 255, 0.5);
+  }
+  .bubble.docked { animation: bob 4.2s ease-in-out infinite alternate; }
+  @keyframes bob {
+    from { transform: translateY(-4px); }
+    to   { transform: translateY(5px); }
+  }
+  .bubble.popping { animation: pop 0.3s ease-out forwards; }
+  @keyframes pop {
+    0%   { transform: scale(1); opacity: 1; }
+    55%  { transform: scale(1.22); opacity: 1; box-shadow: 0 0 34px rgba(200, 225, 255, 0.8); }
+    100% { transform: scale(1.5); opacity: 0; }
+  }
+
+  /* ---- finale ---- */
+  .finale {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 0 8vw;
+    font-family: 'Jolly Lodger', 'IM Fell English', serif;
+    font-size: clamp(2rem, 9vmin, 6rem);
+    letter-spacing: 0.1em;
+    color: #ff3b3b;
+    text-shadow: 0 0 12px rgba(255,60,60,0.9), 0 0 30px rgba(220,30,30,0.6), 0 0 60px rgba(180,0,0,0.4);
+    opacity: 0;
+    filter: blur(10px);
+    transition: opacity 1.4s ease, filter 1.4s ease;
+    pointer-events: none;
+    z-index: 25;
+  }
+  .finale.show { opacity: 1; filter: blur(0.4px); animation: shimmerRed 3.2s ease-in-out 1.5s infinite; }
+  @keyframes shimmerRed {
+    0%, 100% { opacity: 1;    text-shadow: 0 0 12px rgba(255,60,60,0.9), 0 0 30px rgba(220,30,30,0.6); }
+    50%      { opacity: 0.72; text-shadow: 0 0 20px rgba(255,80,80,1),   0 0 45px rgba(220,30,30,0.8); }
+  }
+
+  /* ---- chrome ---- */
+  .reset {
+    position: fixed;
+    right: 3vw;
+    bottom: 7vh;
+    font-family: 'IM Fell English', serif;
+    font-size: clamp(0.85rem, 2vmin, 1.2rem);
+    letter-spacing: 0.32em;
+    color: #6e6390;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(150, 120, 220, 0.3);
+    padding-bottom: 2px;
+    transition: color 0.2s, text-shadow 0.2s, border-color 0.2s;
+    z-index: 30;
+  }
+  .reset:hover {
+    color: #b9a4e0;
+    text-shadow: 0 0 12px rgba(140, 100, 220, 0.6);
+    border-color: rgba(180, 150, 255, 0.7);
+  }
+  .hint {
+    position: fixed;
+    right: 3vw;
+    bottom: 3vh;
+    color: #5e5480;
+    font-size: 0.9rem;
+    font-style: italic;
+    z-index: 30;
+  }
+  .version {
+    position: fixed;
+    bottom: 10px;
+    right: 14px;
+    color: #4a4066;
+    font-size: 0.7rem;
+    font-family: system-ui, sans-serif;
+    z-index: 30;
+  }
+</style>
+</head>
+<body>
+
+<h1>The Ectoplasm Engine</h1>
+
+<div class="machine" id="machine" role="button" tabindex="0" aria-label="Run the contraption for the next name">
+  <svg id="machineSvg" viewBox="0 0 640 520" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <linearGradient id="brass" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#7a6338"/>
+        <stop offset="50%" stop-color="#57431f"/>
+        <stop offset="100%" stop-color="#332510"/>
+      </linearGradient>
+      <linearGradient id="ironDark" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#3a3352"/>
+        <stop offset="100%" stop-color="#171225"/>
+      </linearGradient>
+      <radialGradient id="ectoGrad" cx="0.5" cy="0.35" r="0.9">
+        <stop offset="0%" stop-color="#8affbe"/>
+        <stop offset="55%" stop-color="#37c76f"/>
+        <stop offset="100%" stop-color="#137a3e"/>
+      </radialGradient>
+      <filter id="softGlow" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="6" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+
+    <!-- ground plate -->
+    <rect x="0" y="490" width="640" height="30" fill="#120c1e"/>
+    <rect x="0" y="486" width="640" height="6" fill="#241a38"/>
+
+    <!-- marble track from top-left -->
+    <g stroke="#4a3a68" stroke-width="5" stroke-linecap="round">
+      <line x1="18" y1="98" x2="214" y2="182"/>
+      <line x1="18" y1="112" x2="206" y2="194"/>
+    </g>
+    <line x1="40" y1="108" x2="40" y2="486" stroke="#2c2244" stroke-width="7"/>
+    <line x1="170" y1="168" x2="170" y2="486" stroke="#2c2244" stroke-width="7"/>
+
+    <!-- skull marble -->
+    <g class="skullball">
+      <g transform="translate(34, 88)">
+        <circle r="13" fill="#d8d2e8"/>
+        <circle cx="-4.5" cy="-2" r="3" fill="#1a1428"/>
+        <circle cx="4.5" cy="-2" r="3" fill="#1a1428"/>
+        <path d="M-4 6 L 4 6" stroke="#1a1428" stroke-width="2" stroke-linecap="round"/>
+        <path d="M-2 4 L -2 8 M2 4 L 2 8" stroke="#1a1428" stroke-width="1.4"/>
+      </g>
+    </g>
+
+    <!-- seesaw lever -->
+    <g class="lever">
+      <rect x="168" y="286" width="150" height="9" rx="4" fill="url(#brass)"/>
+      <circle cx="240" cy="292" r="7" fill="#57431f"/>
+    </g>
+    <path d="M240 292 L 224 486 L 256 486 Z" fill="#2c2244"/>
+
+    <!-- bellows -->
+    <g class="bellows">
+      <rect x="322" y="296" width="12" height="52" rx="3" fill="url(#brass)"/>
+      <path d="M334 300 L 352 306 L 346 322 L 360 328 L 350 342 L 334 344 Z" fill="#5a2f6e"/>
+      <path d="M334 302 L 350 308 M 340 322 L 352 326 M 336 340 L 348 338" stroke="#331a40" stroke-width="2.5" fill="none"/>
+      <rect x="356" y="308" width="10" height="32" rx="3" fill="url(#brass)"/>
+    </g>
+    <!-- air pipe from bellows into cauldron -->
+    <path d="M366 324 L 402 324 L 402 380" stroke="url(#brass)" stroke-width="9" fill="none" stroke-linecap="round"/>
+
+    <!-- gears -->
+    <g class="gear-big">
+      <circle cx="150" cy="400" r="56" fill="none" stroke="#57431f" stroke-width="16" stroke-dasharray="10 7"/>
+      <circle cx="150" cy="400" r="46" fill="none" stroke="url(#brass)" stroke-width="10"/>
+      <g stroke="#57431f" stroke-width="8">
+        <line x1="150" y1="360" x2="150" y2="440"/>
+        <line x1="110" y1="400" x2="190" y2="400"/>
+        <line x1="122" y1="372" x2="178" y2="428"/>
+        <line x1="178" y1="372" x2="122" y2="428"/>
+      </g>
+      <circle cx="150" cy="400" r="12" fill="#332510"/>
+    </g>
+    <g class="gear-small">
+      <circle cx="262" cy="428" r="30" fill="none" stroke="#57431f" stroke-width="12" stroke-dasharray="8 6"/>
+      <circle cx="262" cy="428" r="22" fill="none" stroke="url(#brass)" stroke-width="8"/>
+      <g stroke="#57431f" stroke-width="6">
+        <line x1="262" y1="408" x2="262" y2="448"/>
+        <line x1="242" y1="428" x2="282" y2="428"/>
+      </g>
+      <circle cx="262" cy="428" r="8" fill="#332510"/>
+    </g>
+    <!-- drive belt to paddle pulley -->
+    <path d="M289 418 Q 380 372 452 366" stroke="#241a38" stroke-width="6" fill="none"/>
+
+    <!-- cauldron -->
+    <g>
+      <ellipse class="ecto-glow" cx="470" cy="420" rx="86" ry="48" fill="#1f8a4c" opacity="0.5" filter="url(#softGlow)"/>
+      <path d="M394 388 Q 394 470 470 470 Q 546 470 546 388 Z" fill="url(#ironDark)"/>
+      <ellipse cx="470" cy="388" rx="76" ry="18" fill="#0d0a18"/>
+      <ellipse cx="470" cy="388" rx="64" ry="13" fill="url(#ectoGrad)" filter="url(#softGlow)"/>
+      <!-- rising brew bubbles -->
+      <circle class="brew"    cx="450" cy="386" r="4" fill="#8affbe"/>
+      <circle class="brew b2" cx="476" cy="388" r="3" fill="#8affbe"/>
+      <circle class="brew b3" cx="496" cy="385" r="3.5" fill="#8affbe"/>
+      <!-- stirring paddle -->
+      <g class="paddle">
+        <line x1="470" y1="380" x2="470" y2="330" stroke="url(#brass)" stroke-width="7"/>
+        <circle cx="470" cy="330" r="9" fill="#57431f"/>
+      </g>
+      <!-- legs + candle -->
+      <path d="M410 462 L 396 486 M 530 462 L 544 486" stroke="#171225" stroke-width="9" stroke-linecap="round"/>
+      <rect x="460" y="458" width="16" height="26" rx="3" fill="#e8dfc8"/>
+      <path class="flame" d="M468 456 Q 462 444 468 434 Q 474 444 468 456 Z" fill="#ffb347" filter="url(#softGlow)"/>
+    </g>
+
+    <!-- ecto pipe up to the wand ring -->
+    <path d="M522 372 L 560 340 L 560 170 L 590 150" stroke="url(#brass)" stroke-width="11" fill="none" stroke-linecap="round"/>
+    <path d="M560 305 L 560 260" stroke="#8a7040" stroke-width="11" stroke-linecap="round"/>
+    <!-- wand ring: bubbles are born here -->
+    <circle id="wandRing" cx="602" cy="140" r="20" fill="none" stroke="#b89858" stroke-width="5" filter="url(#softGlow)"/>
+    <circle cx="602" cy="140" r="15" fill="rgba(140,255,190,0.10)"/>
+    <!-- puffs -->
+    <circle class="puff"       cx="602" cy="140" r="10" fill="rgba(180,255,215,0.5)"/>
+    <circle class="puff puff2" cx="606" cy="132" r="7"  fill="rgba(180,255,215,0.5)"/>
+  </svg>
+</div>
+
+<div class="finale" id="finale">EVERY BUBBLE MUST BURST</div>
+
+<a class="reset" href="#" id="resetLink" aria-label="Re-randomise the list">RESET</a>
+<p class="hint">Click the contraption for the next name · RESET to start over</p>
+<div class="version">v1.0.0</div>
+
+<script>
+  const VERSION = '1.0.0';
+
+  // ===== CUSTOMISE MESSAGES HERE =====
+  const END_MESSAGE = 'EVERY BUBBLE MUST BURST';
+  // ===================================
+
+  // ===== BUILT-IN FALLBACK (edit names.json for the shared list) =====
+  const ANSWERS = [
+    "WARWICK",
+    "CHRIS",
+    "ADIYA",
+    "JENN",
+    "CAMILLE",
+    "FRANCO",
+    "SARA",
+    "CHUM",
+    "MAYA"
+  ];
+  // ===================================================================
+
+  const DEFAULTS_URL = 'names.json';
+  let names = ANSWERS.slice();
+
+  fetch(DEFAULTS_URL)
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if (d && Array.isArray(d.names) && d.names.length &&
+          JSON.stringify(d.names) !== JSON.stringify(names)) {
+        names = d.names;
+        randomise();
+      }
+    })
+    .catch(() => {});
+
+  const machine = document.getElementById('machine');
+  const svg = document.getElementById('machineSvg');
+  const finale = document.getElementById('finale');
+  const resetLink = document.getElementById('resetLink');
+  finale.textContent = END_MESSAGE;
+
+  let order = [];
+  let pos = -1;        // index of last launched name
+  let busy = false;    // machine mid-cycle
+  let done = false;    // finale shown
+  let gen = 0;         // generation counter: invalidates in-flight callbacks on reset
+  let docked = 0;
+  const floaters = []; // wrapper elements, in launch order
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // where bubbles are born (wand ring), with a fallback for layouts we can't measure
+  function wandPoint() {
+    const el = document.getElementById('wandRing');
+    const r = el.getBoundingClientRect();
+    if (r.width || r.height) return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    return { x: window.innerWidth * 0.3, y: window.innerHeight * 0.55 };
+  }
+
+  // docking slots: golden-angle spiral packed around the top-right corner
+  function slotFor(i) {
+    const cx = window.innerWidth * 0.855;
+    const cy = window.innerHeight * 0.17;
+    const a = i * 2.399963;
+    const rad = 56 * Math.sqrt(i);
+    let x = cx + Math.cos(a) * rad;
+    let y = cy + Math.sin(a) * rad * 0.8;
+    x = Math.min(window.innerWidth - 70, Math.max(window.innerWidth * 0.55, x));
+    y = Math.min(window.innerHeight * 0.55, Math.max(60, y));
+    return { x, y };
+  }
+
+  function bubbleSize(name) {
+    return Math.min(150, 74 + name.length * 6);
+  }
+
+  function spawnBubble(name, index) {
+    const myGen = gen;
+    const d = bubbleSize(name);
+    const wrapEl = document.createElement('div');
+    wrapEl.className = 'bub-pos';
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    b.style.width = d + 'px';
+    b.style.height = d + 'px';
+    const t = document.createElement('div');
+    t.className = 'bname';
+    t.textContent = name;
+    t.style.fontSize = Math.min(d * 0.34, (d * 0.92) / (name.length * 0.55)) + 'px';
+    b.appendChild(t);
+    wrapEl.appendChild(b);
+    document.body.appendChild(wrapEl);
+    floaters.push(wrapEl);
+
+    const s = wandPoint();
+    const e = slotFor(index);
+    const sx = s.x - d / 2, sy = s.y - d / 2;
+    const ex = e.x - d / 2, ey = e.y - d / 2;
+    const final = `translate(${ex}px, ${ey}px)`;
+
+    function dock() {
+      if (myGen !== gen) return;
+      wrapEl.style.transform = final;
+      b.classList.add('docked');
+      b.style.animationDelay = (Math.random() * -4) + 's';
+      docked++;
+      maybeFinale();
+    }
+
+    if (wrapEl.animate) {
+      // drifting float: wobble fades as it nears its slot
+      const N = 12;
+      const frames = [];
+      for (let k = 0; k <= N; k++) {
+        const p = k / N;
+        const q = p * p * (3 - 2 * p); // smoothstep
+        const wob = Math.sin(p * Math.PI * 3.2) * 42 * (1 - p);
+        const lift = -Math.sin(p * Math.PI) * window.innerHeight * 0.05;
+        frames.push({ transform: `translate(${sx + (ex - sx) * q + wob}px, ${sy + (ey - sy) * q + lift}px)` });
+      }
+      const anim = wrapEl.animate(frames, { duration: 3800 + Math.random() * 1000, easing: 'linear', fill: 'forwards' });
+      anim.onfinish = dock;
+    } else {
+      dock();
+    }
+  }
+
+  function maybeFinale() {
+    if (done || gen < 0) return;
+    if (pos === order.length - 1 && docked === order.length) {
+      const myGen = gen;
+      done = true;
+      setTimeout(() => {
+        if (myGen !== gen) return;
+        floaters.forEach((w, i) => {
+          setTimeout(() => {
+            if (myGen !== gen) return;
+            const b = w.querySelector('.bubble');
+            b.classList.remove('docked');
+            b.classList.add('popping');
+            setTimeout(() => w.remove(), 340);
+          }, i * 130);
+        });
+        setTimeout(() => { if (myGen === gen) finale.classList.add('show'); }, floaters.length * 130 + 500);
+      }, 1100);
+    }
+  }
+
+  function runCycle(onLaunch) {
+    svg.classList.remove('run');
+    void svg.getBoundingClientRect(); // restart animations
+    svg.classList.add('run');
+    setTimeout(onLaunch, 1780);
+    setTimeout(() => { svg.classList.remove('run'); busy = false; }, 2150);
+  }
+
+  function next() {
+    if (busy || done || order.length === 0) return;
+    if (pos >= order.length - 1) return; // all launched
+    busy = true;
+    pos = pos + 1;
+    const name = order[pos];
+    const index = pos;
+    runCycle(() => spawnBubble(name, index));
+  }
+
+  function randomise() {
+    gen++;
+    document.querySelectorAll('.bub-pos').forEach(el => el.remove());
+    floaters.length = 0;
+    order = shuffle(names);
+    pos = -1;
+    docked = 0;
+    busy = false;
+    done = false;
+    finale.classList.remove('show');
+    svg.classList.remove('run');
+  }
+
+  machine.addEventListener('click', next);
+  machine.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); next(); }
+  });
+  resetLink.addEventListener('click', (e) => { e.preventDefault(); if (!busy) randomise(); });
+
+  order = shuffle(names);
+</script>
+
+</body>
+</html>
